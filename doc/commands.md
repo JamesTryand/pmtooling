@@ -17,8 +17,8 @@ Nothing else ships in v1. See `doc/architecture.md` for non-goals and the v2 bac
 4. If `title` is omitted, auto-generate one (see below).
 5. Validate the full branch name `<type>/<title>`:
    - pmt-level: `title` itself must not contain `/`.
-   - `git check-ref-format --branch <type>/<title>` — catches `..`, `~^:?*[`, `@{`, leading/trailing/doubled `/`, `.lock` suffix, control characters.
-   - Windows-safety layer: case-insensitive reserved names (`CON, PRN, AUX, NUL, COM1-9, LPT1-9`), or title ending in `.`/trailing space.
+   - `git check-ref-format --branch <type>/<title>` — catches `..`, `~^:?*[`, `@{`, leading/trailing/doubled `/`, `.lock` suffix, control characters, embedded spaces, and trailing dots (verified empirically: `check-ref-format` already rejects both `foo.` and `foo ` on its own).
+   - Windows-safety layer: case-insensitive reserved device names (`CON, PRN, AUX, NUL, COM1-9, LPT1-9`) only — git has no opinion about these, so `check-ref-format` lets them through; trailing dot/space needed no separate check since `check-ref-format` already covers it.
 6. Collision check on `refs/heads/<type>/<title>`:
    - Exists and the title was user-supplied → error.
    - Exists and the title was auto-generated → retry generation (increment, re-check) up to 5 times, then fail.

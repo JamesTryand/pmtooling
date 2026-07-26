@@ -68,14 +68,40 @@ func TestNewCmdRequiresArg(t *testing.T) {
 	}
 }
 
-func TestNewCmdResolvesRepoFlag(t *testing.T) {
+func TestNewCmdEndToEnd(t *testing.T) {
 	dir := initRepo(t)
+	if _, err := execRoot(t, "template", "new", "bug", "--repo", dir); err != nil {
+		t.Fatalf("pmt template new: %v", err)
+	}
+
 	out, err := execRoot(t, "new", "bug/foo", "--repo", dir)
 	if err != nil {
 		t.Fatalf("pmt new: %v", err)
 	}
-	if !strings.Contains(out, "not yet implemented") {
-		t.Errorf("output %q should indicate stub behavior", out)
+	if !strings.Contains(out, "bug/foo") {
+		t.Errorf("output %q should mention the created issue branch", out)
+	}
+}
+
+func TestNewCmdAutoTitle(t *testing.T) {
+	dir := initRepo(t)
+	if _, err := execRoot(t, "template", "new", "bug", "--repo", dir); err != nil {
+		t.Fatalf("pmt template new: %v", err)
+	}
+
+	out, err := execRoot(t, "new", "bug", "--repo", dir)
+	if err != nil {
+		t.Fatalf("pmt new: %v", err)
+	}
+	if !strings.Contains(out, "bug/0001") {
+		t.Errorf("output %q should mention the auto-generated title", out)
+	}
+}
+
+func TestNewCmdMissingTemplateErrors(t *testing.T) {
+	dir := initRepo(t) // no template created
+	if _, err := execRoot(t, "new", "bug/foo", "--repo", dir); err == nil {
+		t.Fatal("expected error when the template doesn't exist")
 	}
 }
 
