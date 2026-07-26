@@ -23,3 +23,14 @@ func resolveRepo(repoFlag string) (repo.Repo, error) {
 	}
 	return repo.Resolve(repoFlag, cwd, userCfg)
 }
+
+// resolveNamedRepo resolves a --from-style value (a path or a configured
+// nickname) to another target repo's canonical main root, per
+// repo.ResolveNamed. Used by `pmt template new/update --from` (Phase 7d).
+func resolveNamedRepo(value string) (string, error) {
+	userCfg, err := config.LoadUserConfig()
+	if err != nil {
+		return "", err
+	}
+	return repo.ResolveNamed(value, userCfg)
+}

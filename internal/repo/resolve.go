@@ -54,6 +54,27 @@ func Resolve(repoFlag, cwd string, userCfg config.UserConfig) (Repo, error) {
 	return Repo{Root: mainRoot, Config: repoCfg}, nil
 }
 
+// ResolveNamed resolves a --from-style value (a path or a configured
+// nickname) to another target repo's canonical main root — used by
+// `pmt template new/update --from <source>` (Phase 7d). Unlike Resolve,
+// this never falls back to cwd or default_repo: --from always names a
+// specific other repo explicitly, and the caller's own repo (resolved
+// separately via --repo/cwd) is not an implicit fallback for it.
+func ResolveNamed(value string, userCfg config.UserConfig) (string, error) {
+	root, err := resolveNicknameOrPath(value, userCfg)
+	if err != nil {
+		return "", err
+	}
+	info, err := git.Discover(root)
+	if err != nil {
+		if errors.Is(err, git.ErrNotARepo) {
+			return "", fmt.Errorf("%q is not a git repository", root)
+		}
+		return "", err
+	}
+	return info.MainRoot(), nil
+}
+
 func resolveRoot(repoFlag, cwd string, userCfg config.UserConfig) (string, error) {
 	if repoFlag != "" {
 		return resolveNicknameOrPath(repoFlag, userCfg)

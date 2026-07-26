@@ -49,3 +49,17 @@ func UpdateRef(dir, ref, sha string) error {
 	_, err := Run(dir, "update-ref", ref, sha)
 	return err
 }
+
+// DeleteRef deletes ref.
+func DeleteRef(dir, ref string) error {
+	_, err := Run(dir, "update-ref", "-d", ref)
+	return err
+}
+
+// Fetch runs `git fetch source refspec` — fetching one specific ref from
+// another repo (a local path or a remote URL) directly into dir, without
+// needing a configured remote.
+func Fetch(dir, source, refspec string) error {
+	_, err := Run(dir, "fetch", source, refspec)
+	return err
+}

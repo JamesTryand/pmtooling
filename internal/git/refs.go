@@ -36,3 +36,25 @@ func ForEachRef(dir, pattern, format string) ([]string, error) {
 	}
 	return Lines(out), nil
 }
+
+// IsAncestor reports whether ancestor is reachable from descendant (i.e.
+// fast-forwarding ancestor to descendant would be safe). A commit is its
+// own ancestor, so this is also true when the two are equal. Exit code 1
+// ("not an ancestor") is a real answer (false, nil error); any other
+// non-zero code (e.g. 128 for an invalid revision) is a genuine error,
+// not silently treated as "false" — verified empirically that git
+// distinguishes these two cases with different exit codes.
+func IsAncestor(dir, ancestor, descendant string) (bool, error) {
+	_, code, err := RunRaw(dir, "merge-base", "--is-ancestor", ancestor, descendant)
+	if err != nil {
+		return false, err
+	}
+	switch code {
+	case 0:
+		return true, nil
+	case 1:
+		return false, nil
+	default:
+		return false, fmt.Errorf("git merge-base --is-ancestor %s %s: exit status %d", ancestor, descendant, code)
+	}
+}

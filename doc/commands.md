@@ -58,6 +58,22 @@ See doc/templates.md#archiving-issues-pmt-close--pmt-reopen for the full design 
 
 The archive entry itself is left untouched by reopen (see doc/templates.md) — it only disappears from `pmt list --archived` once the same issue is closed again.
 
+### `pmt template new <name> --from <source>` / `pmt template update <name> --from <source>` (Phase 7d)
+
+```
+pmt template new <name> --from <path-or-nickname>     [--repo <path-or-nickname>]
+pmt template update <name> --from <path-or-nickname>  [--repo <path-or-nickname>]
+```
+
+See doc/templates.md#sharing-templates-between-repos for the full design. `<source>` is resolved exactly like `--repo` (an existing path, or a nickname from the `repos:` map) but never falls back to cwd or `default_repo` — it always names a specific other repo explicitly.
+
+`pmt template new <name> --from <source>`: a first-time import. Fetches `refs/heads/pmt/template/<name>` directly from `<source>` into the current repo (`git fetch <source-path> refs/heads/pmt/template/<name>:refs/heads/pmt/template/<name>`) — no merge involved, the local ref is created pointing at the exact same commit as the source. Errors if a template of that name already exists locally (same collision as plain `pmt template new`).
+
+`pmt template update <name> --from <source>`: pulls in later changes to an already-imported template. Fetches into a scratch ref `refs/heads/pmt/template-incoming/<name>`, then:
+- If local and incoming are the same commit, or local is already an ancestor of incoming (fast-forward possible) — updates `refs/heads/pmt/template/<name>` directly and deletes the scratch ref.
+- If local is already ahead of (or equal to) incoming — nothing to do, deletes the scratch ref, reports "already up to date."
+- If the two have diverged — **no automatic merge is attempted**. The scratch ref is left in place, and pmt prints instructions to merge manually with plain git (e.g. `git worktree add <path> pmt/template/<name>` then `git -C <path> merge pmt/template-incoming/<name>`). Errors with `ErrNotFound` if the template was never imported locally.
+
 ## `pmt new <type>[/<title>]`
 
 1. Split the argument on the first `/` into `type` and optional `title`. Resolve the target repo (`architecture.md`).
@@ -88,7 +104,7 @@ The archive entry itself is left untouched by reopen (see doc/templates.md) — 
 - `next = max(parsed) + 1` if any matched, else `1` — deliberately `max+1`, not `count+1`, so a deleted/renamed issue never causes a future number to be reused.
 - Zero-padded to 4 digits (`%04d`; widens naturally past 9999).
 
-## `pmt template new <name>`
+## `pmt template new <name>` (scaffolding, no `--from`)
 
 1. Resolve repo. Validate `name` has no `/` and `git check-ref-format --branch pmt/template/<name>` passes.
 2. Collision check: `refs/heads/pmt/template/<name>` must not already exist → error naming the template.

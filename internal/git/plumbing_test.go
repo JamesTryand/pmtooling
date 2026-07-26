@@ -145,3 +145,67 @@ func TestUpdateRefAndNestedTreeReadback(t *testing.T) {
 		t.Errorf("nested blob content = %q, want {}", out)
 	}
 }
+
+func TestDeleteRef(t *testing.T) {
+	dir := initRepo(t)
+	sha, err := HashObject(dir, []byte("hello"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, err := Mktree(dir, []TreeEntry{{Mode: "100644", Type: "blob", SHA: sha, Name: "f.txt"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	commit, err := CommitTree(dir, tree, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref := "refs/heads/scratch"
+	if err := UpdateRef(dir, ref, commit); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := DeleteRef(dir, ref); err != nil {
+		t.Fatalf("DeleteRef: %v", err)
+	}
+	exists, err := RefExists(dir, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists {
+		t.Error("ref should no longer exist after DeleteRef")
+	}
+}
+
+func TestFetch(t *testing.T) {
+	src := initRepo(t)
+	commitFile(t, src, "f.txt", "hello")
+	if _, err := Run(src, "branch", "pmt/template/bug"); err != nil {
+		t.Fatal(err)
+	}
+	srcTip, err := Run(src, "rev-parse", "pmt/template/bug")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	dst := initRepo(t)
+	if err := Fetch(dst, src, "refs/heads/pmt/template/bug:refs/heads/pmt/template/bug"); err != nil {
+		t.Fatalf("Fetch: %v", err)
+	}
+	dstTip, err := Run(dst, "rev-parse", "refs/heads/pmt/template/bug")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dstTip != srcTip {
+		t.Errorf("fetched tip = %s, want %s", dstTip, srcTip)
+	}
+}
+
+func TestFetchMissingRefFails(t *testing.T) {
+	src := initRepo(t)
+	dst := initRepo(t)
+	err := Fetch(dst, src, "refs/heads/pmt/template/bug:refs/heads/pmt/template/bug")
+	if err == nil {
+		t.Fatal("expected an error fetching a ref that doesn't exist in the source")
+	}
+}

@@ -143,6 +143,43 @@ func TestResolveFromLinkedWorktree(t *testing.T) {
 	assertSameRepo(t, r.Root, mainDir)
 }
 
+func TestResolveNamedPath(t *testing.T) {
+	dir := initRepo(t)
+	root, err := ResolveNamed(dir, config.UserConfig{})
+	if err != nil {
+		t.Fatalf("ResolveNamed: %v", err)
+	}
+	assertSameRepo(t, root, dir)
+}
+
+func TestResolveNamedNickname(t *testing.T) {
+	dir := initRepo(t)
+	userCfg := config.UserConfig{Repos: map[string]string{"clientA": dir}}
+	root, err := ResolveNamed("clientA", userCfg)
+	if err != nil {
+		t.Fatalf("ResolveNamed: %v", err)
+	}
+	assertSameRepo(t, root, dir)
+}
+
+func TestResolveNamedUnknownNickname(t *testing.T) {
+	_, err := ResolveNamed("nope", config.UserConfig{Repos: map[string]string{"clientA": "/anywhere"}})
+	if err == nil {
+		t.Fatal("expected error for an unknown nickname")
+	}
+	if !strings.Contains(err.Error(), "clientA") {
+		t.Errorf("error %q should list known nicknames", err)
+	}
+}
+
+func TestResolveNamedNotARepo(t *testing.T) {
+	dir := t.TempDir() // not a git repo
+	_, err := ResolveNamed(dir, config.UserConfig{})
+	if err == nil {
+		t.Fatal("expected error for a path that isn't a git repository")
+	}
+}
+
 // assertSameRepo verifies got resolves to the same repo as want by
 // statting a marker file, sidestepping path-string/symlink differences.
 func assertSameRepo(t *testing.T, got, want string) {
