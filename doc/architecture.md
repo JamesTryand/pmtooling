@@ -28,8 +28,9 @@ Precedence, evaluated in this order:
 
 Discovery is one call:
 ```
-git rev-parse --path-format=absolute --show-toplevel --git-dir --git-common-dir --is-bare-repository
+git rev-parse --path-format=absolute --git-dir --git-common-dir --is-bare-repository
 ```
+(`--show-toplevel` is deliberately omitted: it hard-fails with "fatal: this operation must be run in a work tree" inside a bare repo, which would break bare-repo detection in the very call meant to catch it. Everything pmt needs — the main root, and linked-worktree detection — comes from `--git-dir`/`--git-common-dir` alone.)
 - Non-zero exit (not inside a git repo) and no `--repo` given → error: pass `--repo <path>` or `--repo <nickname>`.
 - `--is-bare-repository` true → explicit v1 error; the sibling-worktree convention has no defined location for a bare repo.
 - If `git-dir` and `git-common-dir` differ, the cwd is inside a **linked worktree** — including the case of running `pmt` from inside one of its own issue worktrees. In every case, the canonical main repo root is derived as `filepath.Dir(git-common-dir)`, and pmt always operates relative to that derived root, not the worktree it happened to be invoked from.
