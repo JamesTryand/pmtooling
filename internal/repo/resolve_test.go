@@ -66,14 +66,67 @@ func TestResolveCwdDiscovery(t *testing.T) {
 }
 
 func TestResolveCwdNotRepoNoDefault(t *testing.T) {
-	dir := t.TempDir() // not a git repo
+	t.Setenv(EnvDefaultRepo, "") // ensure no ambient env value on the test machine masks this case
+	dir := t.TempDir()           // not a git repo
 	_, err := Resolve("", dir, config.UserConfig{})
 	if err == nil {
 		t.Fatal("expected error when cwd isn't a repo and no --repo/default_repo given")
 	}
 }
 
+func TestResolveEnvDefaultRepo(t *testing.T) {
+	repoDir := initRepo(t)
+	notRepoDir := t.TempDir()
+	t.Setenv(EnvDefaultRepo, repoDir)
+
+	r, err := Resolve("", notRepoDir, config.UserConfig{})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	assertSameRepo(t, r.Root, repoDir)
+}
+
+func TestResolveEnvDefaultRepoBeatsUserConfigDefault(t *testing.T) {
+	envRepoDir := initRepo(t)
+	configRepoDir := initRepo(t)
+	notRepoDir := t.TempDir()
+	t.Setenv(EnvDefaultRepo, envRepoDir)
+	userCfg := config.UserConfig{
+		Repos:       map[string]string{"clientA": configRepoDir},
+		DefaultRepo: "clientA",
+	}
+
+	r, err := Resolve("", notRepoDir, userCfg)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	assertSameRepo(t, r.Root, envRepoDir)
+}
+
+func TestResolveEnvDefaultRepoInvalidPath(t *testing.T) {
+	notRepoDir := t.TempDir()
+	t.Setenv(EnvDefaultRepo, filepath.Join(t.TempDir(), "does-not-exist"))
+
+	_, err := Resolve("", notRepoDir, config.UserConfig{})
+	if err == nil {
+		t.Fatal("expected error for a nonexistent PMT_DEFAULT_REPO path")
+	}
+}
+
+func TestResolveCwdDiscoveryBeatsEnvDefaultRepo(t *testing.T) {
+	cwdRepoDir := initRepo(t)
+	envRepoDir := initRepo(t)
+	t.Setenv(EnvDefaultRepo, envRepoDir)
+
+	r, err := Resolve("", cwdRepoDir, config.UserConfig{})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	assertSameRepo(t, r.Root, cwdRepoDir)
+}
+
 func TestResolveCwdNotRepoFallsBackToDefault(t *testing.T) {
+	t.Setenv(EnvDefaultRepo, "") // ensure no ambient env value masks the config-based fallback being tested
 	repoDir := initRepo(t)
 	notRepoDir := t.TempDir()
 	userCfg := config.UserConfig{

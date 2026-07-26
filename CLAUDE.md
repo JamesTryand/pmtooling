@@ -8,6 +8,7 @@
 - `doc/commands.md` — command surface (v1 + Phase 7 v2 additions), exact git operations each command performs
 - `doc/templates.md` — template ref-namespace convention, starter scaffold files, README front-matter schema, archive/reopen workflow
 - `doc/edge-cases.md` — edge-case table, doubles as the implementation acceptance checklist
+- `doc/external-repos.md` — recommended pattern for an issue worktree to reach a separate "code repo" (Claude Code `additionalDirectories` permission, not git submodules/nesting)
 
 ## User Preferences
 - Ask first when something important is unclear or uncertain

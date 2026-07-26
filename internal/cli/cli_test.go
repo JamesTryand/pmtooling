@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/JamesTryand/pmtooling/internal/git"
+	"github.com/JamesTryand/pmtooling/internal/repo"
 )
 
 // initRepo creates a scratch git repo for --repo <path>-based tests. This
@@ -272,9 +273,33 @@ func TestListCmdBareRepoAccepted(t *testing.T) {
 // any git repo, no --repo/config given" row through the actual CLI, not
 // just internal/repo.Resolve in isolation.
 func TestNoRepoAndCwdNotARepo(t *testing.T) {
-	chdir(t, t.TempDir()) // deliberately not a git repo
+	t.Setenv(repo.EnvDefaultRepo, "") // ensure no ambient env value masks this case
+	chdir(t, t.TempDir())             // deliberately not a git repo
 	if _, err := execRoot(t, "list"); err == nil {
 		t.Fatal("expected error when cwd isn't a repo and no --repo was given")
+	}
+}
+
+// TestListCmdEnvDefaultRepo covers PMT_DEFAULT_REPO through the actual
+// CLI: no --repo, cwd outside any git repo, falls back to the env var.
+func TestListCmdEnvDefaultRepo(t *testing.T) {
+	repoDir := initRepo(t)
+	if _, err := execRoot(t, "template", "new", "bug", "--repo", repoDir); err != nil {
+		t.Fatalf("pmt template new: %v", err)
+	}
+	if _, err := execRoot(t, "new", "bug/foo", "--repo", repoDir); err != nil {
+		t.Fatalf("pmt new: %v", err)
+	}
+
+	t.Setenv(repo.EnvDefaultRepo, repoDir)
+	chdir(t, t.TempDir()) // deliberately not a git repo, no --repo given
+
+	out, err := execRoot(t, "list")
+	if err != nil {
+		t.Fatalf("pmt list (via PMT_DEFAULT_REPO): %v", err)
+	}
+	if !strings.Contains(out, "bug/foo") {
+		t.Errorf("output %q should list bug/foo via the env-var fallback repo", out)
 	}
 }
 

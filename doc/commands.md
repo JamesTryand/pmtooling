@@ -31,6 +31,10 @@ Manages the user-level `repos:` nickname map (see doc/architecture.md#config) �
 
 These are entirely local, deterministic config edits — no new git mechanics.
 
+### `PMT_DEFAULT_REPO` env var (Phase 8a)
+
+A literal filesystem path, checked as a repo-selection fallback between cwd discovery and `default_repo` — see doc/architecture.md#repo-resolution for full precedence. Not a nickname, not managed by `pmt repo`; set it directly in your shell/session (e.g. `export PMT_DEFAULT_REPO=/home/james/work/clientA` or `$env:PMT_DEFAULT_REPO = "C:\work\clientA"`). If set but not a valid directory, `pmt` fails with a clear error rather than silently falling through to `default_repo`.
+
 ### `pmt close <type>/<title>` / `pmt reopen <type>/<title>` / `pmt list --archived` (Phase 7b)
 
 ```

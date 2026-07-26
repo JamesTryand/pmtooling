@@ -51,6 +51,15 @@ Explicit behavior for every edge case identified during design (v1 and the Phase
 | `pmt template update` when local and source have diverged | No automatic merge; local template is completely untouched, the fetched commit is left at an inspectable `pmt/template-incoming/<name>` ref with manual-merge instructions printed |
 | `--from` value is a bad revision / invalid nickname | `merge-base --is-ancestor` distinguishes a genuine error (e.g. invalid revision, exit 128) from a valid "not an ancestor" answer (exit 1) — never silently misreported as "not an ancestor" |
 
+## Phase 8a edge cases (`PMT_DEFAULT_REPO` env var)
+
+| Edge case | Resolution |
+|---|---|
+| `PMT_DEFAULT_REPO` set to a path that doesn't exist or isn't a directory | Hard error naming the env var and value — never silently falls through to `default_repo` |
+| `PMT_DEFAULT_REPO` set, but cwd is already inside a git repo | Ignored — cwd discovery still wins per the precedence order |
+| `PMT_DEFAULT_REPO` set, cwd is not a repo, and `default_repo` is also configured | Env var wins — it's a session-scoped override, checked before the more permanent config setting |
+| `PMT_DEFAULT_REPO` unset or empty | No effect; falls through to `default_repo` (or the "not inside a git repository" error) exactly as before Phase 8a |
+
 ## Deliberately out of scope
 
 - Push, PR/issue API integration (GitHub/GitLab) — purely local git for now, and still deferred as of the Phase 7 v2 work (not selected for implementation).

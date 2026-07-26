@@ -4,6 +4,8 @@
 
 `pmtooling` (this repo) contains only pmt's own Go source. All issue/template branches and worktrees that pmt creates live in a **target repo** — a separate git repository (e.g. a client's project) that the user points `pmt` at. pmt is never run against `pmtooling` itself as a target.
 
+The target repo pmt tracks issues in doesn't have to *be* the actual codebase an issue is about — it's common for the real code to live in one or more entirely separate repos. See `doc/external-repos.md` for the recommended pattern (Claude Code permissions, not git submodules) for an issue worktree to reach those.
+
 ## Core model
 
 - An **issue** is a git branch in the target repo, named `<type>/<title>` (e.g. `bug/dboverflow`).
@@ -27,6 +29,10 @@ For a **bare** repo (Phase 7c), `mainRepoRoot` is the bare repo's own path (see 
 Precedence, evaluated in this order:
 1. `--repo <value>` flag: if `value` is an existing directory, use it directly; otherwise treat it as a nickname and look it up in the user-level config's `repos:` map. Unknown nickname is a hard error listing known nicknames.
 2. No `--repo`: discover from the current working directory.
+3. cwd isn't inside any git repo: fall back to the `PMT_DEFAULT_REPO` env var (Phase 8a), a literal filesystem path (not a nickname) — e.g. `PMT_DEFAULT_REPO=/home/james/work/clientA` or `PMT_DEFAULT_REPO=C:\work\clientA`, set however is native to the user's own shell/OS; no cross-platform-specific handling needed beyond reading it as a plain string. If set but not a valid directory, this is a hard error (fails loudly rather than silently falling through to `default_repo`).
+4. Still nothing: fall back to the user-level config's `default_repo` (nickname), if set.
+
+The env var sits ahead of `default_repo` because it's typically a session/shell-scoped override (e.g. set in a terminal's profile for "whatever I'm working on right now"), while `default_repo` is a more permanent, saved setting.
 
 Discovery is one call:
 ```
@@ -53,7 +59,7 @@ git rev-parse --path-format=absolute --git-dir --git-common-dir --is-bare-reposi
   title_pad_width: 4                    # optional override
   ```
   For a bare repo this is just `<bare-repo-path>/.pmt.yaml` — no special-casing needed; a bare repo is a plain directory (containing `HEAD`, `objects/`, `refs/`, ...), and an extra non-git file living alongside those is perfectly ordinary.
-- **Repo selection precedence** (which target repo to use): `--repo` flag (path or nickname) > cwd discovery > user-level `default_repo` (nickname, used as a fallback only when cwd isn't inside any git repo and no `--repo` was given).
+- **Repo selection precedence** (which target repo to use): `--repo` flag (path or nickname) > cwd discovery > `PMT_DEFAULT_REPO` env var (literal path, Phase 8a) > user-level `default_repo` (nickname) — the last two are fallbacks only when cwd isn't inside any git repo and no `--repo` was given.
 - **Config precedence** (once a repo is selected): the resolved repo's `.pmt.yaml`, if present, overrides pmt's built-in defaults (sibling worktree convention, `title_pad_width: 4`). There is no further chain — repo-local config always wins over built-in defaults, and user-level config never supplies `worktrees_dir`/`title_pad_width`.
 - The `git-dir`/`git-common-dir` → `MainRoot()` derivation (including bare-repo handling) applies uniformly after resolution, regardless of whether the repo came from `--repo`, cwd discovery, or the `default_repo` fallback.
 

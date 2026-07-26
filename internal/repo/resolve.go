@@ -14,6 +14,13 @@ import (
 	"github.com/JamesTryand/pmtooling/internal/git"
 )
 
+// EnvDefaultRepo is a literal filesystem path (not a nickname) used as a
+// repo-selection fallback between cwd discovery and userCfg.DefaultRepo
+// — see resolveRoot. A plain env var works identically on Windows/Linux/
+// macOS: it's just a string read via os.Getenv, and the path syntax the
+// user sets it to is whatever's native to their own OS.
+const EnvDefaultRepo = "PMT_DEFAULT_REPO"
+
 // Repo is a fully resolved target repository: its canonical main root
 // (see git.RepoInfo.MainRoot) plus repo-local config.
 type Repo struct {
@@ -26,7 +33,14 @@ type Repo struct {
 //  1. repoFlag (--repo): an existing directory is used directly;
 //     otherwise it's looked up as a nickname in userCfg.Repos.
 //  2. No repoFlag: discovered from cwd.
-//  3. cwd isn't inside any repo: falls back to userCfg.DefaultRepo, if set.
+//  3. cwd isn't inside any repo: falls back to the EnvDefaultRepo env
+//     var (a literal path), if set.
+//  4. Still nothing: falls back to userCfg.DefaultRepo, if set.
+//
+// The env var sits ahead of the user-config default because it's
+// typically a session/shell-scoped override (e.g. set in a terminal's
+// profile for "whatever I'm working on right now"), while default_repo
+// is a more permanent, saved setting.
 //
 // Whatever the source, the result is re-derived to its canonical main
 // root (so invocation from inside a linked/issue worktree still resolves
@@ -86,6 +100,14 @@ func resolveRoot(repoFlag, cwd string, userCfg config.UserConfig) (string, error
 	}
 	if !errors.Is(err, git.ErrNotARepo) {
 		return "", err
+	}
+
+	if envRepo := os.Getenv(EnvDefaultRepo); envRepo != "" {
+		info, statErr := os.Stat(envRepo)
+		if statErr != nil || !info.IsDir() {
+			return "", fmt.Errorf("%s=%q does not exist or is not a directory", EnvDefaultRepo, envRepo)
+		}
+		return envRepo, nil
 	}
 
 	if userCfg.DefaultRepo != "" {
