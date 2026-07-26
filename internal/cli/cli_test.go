@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -157,14 +158,78 @@ func TestTemplateListCmdEmpty(t *testing.T) {
 	}
 }
 
-func TestListCmdWithFlags(t *testing.T) {
+func TestListCmdEmpty(t *testing.T) {
 	dir := initRepo(t)
-	out, err := execRoot(t, "list", "--type", "bug", "--json", "--repo", dir)
+	out, err := execRoot(t, "list", "--repo", dir)
 	if err != nil {
 		t.Fatalf("pmt list: %v", err)
 	}
-	if !strings.Contains(out, `type="bug"`) || !strings.Contains(out, "json=true") {
-		t.Errorf("output %q should reflect --type/--json flags", out)
+	if !strings.Contains(out, "No issues found") {
+		t.Errorf("output %q should indicate no issues exist yet", out)
+	}
+}
+
+func TestListCmdTableOutput(t *testing.T) {
+	dir := initRepo(t)
+	if _, err := execRoot(t, "template", "new", "bug", "--repo", dir); err != nil {
+		t.Fatalf("pmt template new: %v", err)
+	}
+	if _, err := execRoot(t, "new", "bug/foo", "--repo", dir); err != nil {
+		t.Fatalf("pmt new: %v", err)
+	}
+
+	out, err := execRoot(t, "list", "--repo", dir)
+	if err != nil {
+		t.Fatalf("pmt list: %v", err)
+	}
+	if !strings.Contains(out, "BRANCH") || !strings.Contains(out, "bug/foo") || !strings.Contains(out, "open") {
+		t.Errorf("output %q should show the table header and the created issue", out)
+	}
+}
+
+func TestListCmdJSONOutput(t *testing.T) {
+	dir := initRepo(t)
+	if _, err := execRoot(t, "template", "new", "bug", "--repo", dir); err != nil {
+		t.Fatalf("pmt template new: %v", err)
+	}
+	if _, err := execRoot(t, "new", "bug/foo", "--repo", dir); err != nil {
+		t.Fatalf("pmt new: %v", err)
+	}
+
+	out, err := execRoot(t, "list", "--json", "--repo", dir)
+	if err != nil {
+		t.Fatalf("pmt list: %v", err)
+	}
+	var issues []map[string]any
+	if err := json.Unmarshal([]byte(out), &issues); err != nil {
+		t.Fatalf("--json output is not valid JSON: %v\noutput: %s", err, out)
+	}
+	if len(issues) != 1 || issues[0]["branch"] != "bug/foo" {
+		t.Errorf("decoded JSON = %+v, want one issue with branch bug/foo", issues)
+	}
+}
+
+func TestListCmdTypeFilter(t *testing.T) {
+	dir := initRepo(t)
+	if _, err := execRoot(t, "template", "new", "bug", "--repo", dir); err != nil {
+		t.Fatalf("pmt template new: %v", err)
+	}
+	if _, err := execRoot(t, "template", "new", "feature", "--repo", dir); err != nil {
+		t.Fatalf("pmt template new: %v", err)
+	}
+	if _, err := execRoot(t, "new", "bug/foo", "--repo", dir); err != nil {
+		t.Fatalf("pmt new: %v", err)
+	}
+	if _, err := execRoot(t, "new", "feature/bar", "--repo", dir); err != nil {
+		t.Fatalf("pmt new: %v", err)
+	}
+
+	out, err := execRoot(t, "list", "--type", "bug", "--repo", dir)
+	if err != nil {
+		t.Fatalf("pmt list: %v", err)
+	}
+	if !strings.Contains(out, "bug/foo") || strings.Contains(out, "feature/bar") {
+		t.Errorf("output %q should include only bug/foo, not feature/bar", out)
 	}
 }
 
