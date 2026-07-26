@@ -2,10 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/JamesTryand/pmtooling/internal/repo"
+	"github.com/JamesTryand/pmtooling/internal/template"
 )
 
 func newTemplateCmd(resolve func() (repo.Repo, error)) *cobra.Command {
@@ -18,8 +20,6 @@ func newTemplateCmd(resolve func() (repo.Repo, error)) *cobra.Command {
 	return cmd
 }
 
-// newTemplateNewCmd is a Phase 2 stub; full scaffolding behavior lands in
-// Phase 3, per doc/templates.md and task_plan.md.
 func newTemplateNewCmd(resolve func() (repo.Repo, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:   "new <name>",
@@ -30,15 +30,19 @@ func newTemplateNewCmd(resolve func() (repo.Repo, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(),
-				"pmt template new %s: not yet implemented (resolved target repo: %s) — see task_plan.md Phase 3\n",
-				args[0], r.Root)
+			name := args[0]
+			commit, err := template.New(r.Root, name)
+			if err != nil {
+				return err
+			}
+			shortRef := strings.TrimPrefix(template.RefFor(name), "refs/heads/")
+			fmt.Fprintf(cmd.OutOrStdout(), "Created template %q (%s)\n", name, commit)
+			fmt.Fprintf(cmd.OutOrStdout(), "Check it out with `git worktree add <path> %s` or `git switch %s`, edit, and commit.\n", shortRef, shortRef)
 			return nil
 		},
 	}
 }
 
-// newTemplateListCmd is a Phase 2 stub; full behavior lands in Phase 3.
 func newTemplateListCmd(resolve func() (repo.Repo, error)) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
@@ -49,9 +53,17 @@ func newTemplateListCmd(resolve func() (repo.Repo, error)) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(),
-				"pmt template list: not yet implemented (resolved target repo: %s) — see task_plan.md Phase 3\n",
-				r.Root)
+			names, err := template.List(r.Root)
+			if err != nil {
+				return err
+			}
+			if len(names) == 0 {
+				fmt.Fprintln(cmd.OutOrStdout(), "No templates found. Run `pmt template new <name>` to create one.")
+				return nil
+			}
+			for _, n := range names {
+				fmt.Fprintln(cmd.OutOrStdout(), n)
+			}
 			return nil
 		},
 	}

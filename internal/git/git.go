@@ -74,3 +74,25 @@ func Lines(output string) []string {
 	}
 	return strings.Split(output, "\n")
 }
+
+// RunWithStdin executes git with args in dir, feeding stdin to the
+// process, and returns trimmed stdout. Used by the plumbing commands
+// (hash-object, mktree) that read their payload from stdin.
+func RunWithStdin(dir string, stdin []byte, args ...string) (string, error) {
+	cmd := exec.Command("git", args...)
+	cmd.Dir = dir
+	cmd.Stdin = bytes.NewReader(stdin)
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
+	runErr := cmd.Run()
+	stdout := strings.TrimSpace(stdoutBuf.String())
+	if runErr == nil {
+		return stdout, nil
+	}
+	if exitErr, ok := runErr.(*exec.ExitError); ok {
+		return "", &ExitError{Args: args, Code: exitErr.ExitCode(), Stderr: strings.TrimSpace(stderrBuf.String())}
+	}
+	return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), runErr)
+}

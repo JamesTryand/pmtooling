@@ -91,19 +91,43 @@ func TestTemplateNewCmd(t *testing.T) {
 	if err != nil {
 		t.Fatalf("pmt template new: %v", err)
 	}
-	if !strings.Contains(out, "not yet implemented") {
-		t.Errorf("output %q should indicate stub behavior", out)
+	if !strings.Contains(out, "bug") {
+		t.Errorf("output %q should mention the created template", out)
+	}
+}
+
+func TestTemplateNewCmdCollision(t *testing.T) {
+	dir := initRepo(t)
+	if _, err := execRoot(t, "template", "new", "bug", "--repo", dir); err != nil {
+		t.Fatalf("pmt template new (first): %v", err)
+	}
+	if _, err := execRoot(t, "template", "new", "bug", "--repo", dir); err == nil {
+		t.Fatal("expected error creating a template that already exists")
 	}
 }
 
 func TestTemplateListCmd(t *testing.T) {
 	dir := initRepo(t)
+	if _, err := execRoot(t, "template", "new", "bug", "--repo", dir); err != nil {
+		t.Fatalf("pmt template new: %v", err)
+	}
 	out, err := execRoot(t, "template", "list", "--repo", dir)
 	if err != nil {
 		t.Fatalf("pmt template list: %v", err)
 	}
-	if !strings.Contains(out, "not yet implemented") {
-		t.Errorf("output %q should indicate stub behavior", out)
+	if !strings.Contains(out, "bug") {
+		t.Errorf("output %q should list the 'bug' template", out)
+	}
+}
+
+func TestTemplateListCmdEmpty(t *testing.T) {
+	dir := initRepo(t)
+	out, err := execRoot(t, "template", "list", "--repo", dir)
+	if err != nil {
+		t.Fatalf("pmt template list: %v", err)
+	}
+	if !strings.Contains(out, "No templates found") {
+		t.Errorf("output %q should indicate no templates exist yet", out)
 	}
 }
 
