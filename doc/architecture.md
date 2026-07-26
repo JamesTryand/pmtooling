@@ -49,7 +49,9 @@ git rev-parse --path-format=absolute --git-dir --git-common-dir --is-bare-reposi
   worktrees_dir: ../clientA.worktrees   # optional override
   title_pad_width: 4                    # optional override
   ```
-- Precedence: `--repo` flag > repo-local `.pmt.yaml` > cwd discovery > user-level `default_repo`.
+- **Repo selection precedence** (which target repo to use): `--repo` flag (path or nickname) > cwd discovery > user-level `default_repo` (nickname, used as a fallback only when cwd isn't inside any git repo and no `--repo` was given).
+- **Config precedence** (once a repo is selected): the resolved repo's `.pmt.yaml`, if present, overrides pmt's built-in defaults (sibling worktree convention, `title_pad_width: 4`). There is no further chain — repo-local config always wins over built-in defaults, and user-level config never supplies `worktrees_dir`/`title_pad_width`.
+- Bare-repo rejection (`--is-bare-repository`) and the `git-dir`/`git-common-dir` → `MainRoot()` derivation apply uniformly after resolution, regardless of whether the repo came from `--repo`, cwd discovery, or the `default_repo` fallback.
 
 ## Issue metadata — no central manifest
 
