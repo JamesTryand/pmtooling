@@ -78,4 +78,58 @@ func TestDiscoverBareRepo(t *testing.T) {
 	if !info.IsBare {
 		t.Errorf("expected IsBare == true for a bare repo")
 	}
+	// For a bare repo, MainRoot() must be the repo itself, not its parent
+	// (filepath.Dir(GitCommonDir) would incorrectly return the parent,
+	// since GitCommonDir already *is* the bare repo's own path).
+	assertMainRoot(t, info.MainRoot(), dir)
+}
+
+// TestDiscoverBareRepoFromLinkedWorktree covers the case that broke a
+// naive "IsBare = whatever rev-parse says for cwd" implementation:
+// --is-bare-repository reports false from inside a linked worktree
+// (which always has a real working tree) even though the repo it
+// belongs to is bare. IsBare/MainRoot must still resolve correctly.
+func TestDiscoverBareRepoFromLinkedWorktree(t *testing.T) {
+	bareDir := t.TempDir()
+	if _, err := Run(bareDir, "init", "-q", "--bare"); err != nil {
+		t.Fatalf("git init --bare: %v", err)
+	}
+	blob, err := HashObject(bareDir, []byte("hi"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, err := Mktree(bareDir, []TreeEntry{{Mode: "100644", Type: "blob", SHA: blob, Name: "f.txt"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	commit, err := CommitTree(bareDir, tree, "init")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := UpdateRef(bareDir, "refs/heads/master", commit); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Run(bareDir, "branch", "bug/one", "refs/heads/master"); err != nil {
+		t.Fatal(err)
+	}
+
+	worktreeDir := filepath.Join(t.TempDir(), "wt")
+	if err := WorktreeAdd(bareDir, worktreeDir, "bug/one"); err != nil {
+		t.Fatalf("WorktreeAdd: %v", err)
+	}
+
+	info, err := Discover(worktreeDir)
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if !info.InLinkedWorktree() {
+		t.Errorf("expected linked worktree, GitDir == GitCommonDir (%q)", info.GitDir)
+	}
+	if !info.IsBare {
+		t.Errorf("IsBare = false, want true: the main repo is bare even though this invocation is from inside a (necessarily non-bare) linked worktree")
+	}
+	// The whole point of this test: MainRoot() must resolve to the bare
+	// repo itself, not its parent, even when invoked from inside a
+	// linked worktree.
+	assertMainRoot(t, info.MainRoot(), bareDir)
 }

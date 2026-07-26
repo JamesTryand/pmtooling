@@ -25,6 +25,15 @@ func TestComputeWorktreePathOverride(t *testing.T) {
 	}
 }
 
+func TestComputeWorktreePathStripsGitSuffixForBareRepoConvention(t *testing.T) {
+	mainRoot := filepath.Join(t.TempDir(), "clientA.git")
+	got := ComputeWorktreePath(mainRoot, "", "bug", "dboverflow")
+	want := filepath.Join(filepath.Dir(mainRoot), "clientA.worktrees", "bug", "dboverflow")
+	if got != want {
+		t.Errorf("ComputeWorktreePath = %q, want %q (clientA.worktrees, not clientA.git.worktrees)", got, want)
+	}
+}
+
 func TestWorktreeAdd(t *testing.T) {
 	mainDir := initRepo(t)
 	commitFile(t, mainDir, "f.txt", "hello")

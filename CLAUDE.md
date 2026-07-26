@@ -4,9 +4,9 @@
 `pmtooling` is the Go source for `pmt`, a CLI tool that manages "issues" (bugs, features, etc.) in *other* git repositories using git branches and git worktrees, where each issue type is scaffolded from a template branch. This repo is only pmt's own source code — pmt is never run against this repo as if it were a target repo.
 
 ## Reference Files
-- `doc/architecture.md` — repo separation model, worktree sibling convention, repo resolution/nested-worktree handling, config precedence
-- `doc/commands.md` — v1 command surface, exact git operations each command performs
-- `doc/templates.md` — template ref-namespace convention, starter scaffold files, README front-matter schema
+- `doc/architecture.md` — repo separation model, worktree sibling convention, repo resolution/nested-worktree/bare-repo handling, config precedence
+- `doc/commands.md` — command surface (v1 + Phase 7 v2 additions), exact git operations each command performs
+- `doc/templates.md` — template ref-namespace convention, starter scaffold files, README front-matter schema, archive/reopen workflow
 - `doc/edge-cases.md` — edge-case table, doubles as the implementation acceptance checklist
 
 ## User Preferences
@@ -15,7 +15,7 @@
 
 ## Build And Test
 - `go build ./...`
-- `go test ./...` (129 tests as of v1 completion, all against real scratch git repos in `t.TempDir()` — never against this repo)
+- `go test ./...` (all against real scratch git repos in `t.TempDir()` — never against this repo; see progress.md for the current test count)
 - `go vet ./...`
 - `go test -race ./...` requires cgo/a C compiler; not available in some dev environments (noted, not required)
 
@@ -28,7 +28,7 @@
 
 ### ALWAYS
 - Keep template branches under `refs/heads/pmt/template/<type>`, never a bare `<type>` branch — it collides with issue branches `refs/heads/<type>/<title>` (git ref D/F conflict)
-- Validate branch/title input with `git check-ref-format` plus a Windows-reserved-name/trailing-dot-space layer (see `doc/edge-cases.md`)
+- Validate branch/title input with `git check-ref-format` (which already rejects trailing dots and embedded/trailing spaces on its own) plus a Windows reserved-device-name layer (`CON`/`NUL`/`COM1`/...) — see `doc/edge-cases.md`
 - Read issue metadata via `git show <branch>:README.md`, not the filesystem — it must work with no worktree checked out
 
 ## Verification

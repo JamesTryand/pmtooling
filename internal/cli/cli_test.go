@@ -254,13 +254,17 @@ func TestListCmdTypeFilter(t *testing.T) {
 	}
 }
 
-func TestListCmdBareRepoRejected(t *testing.T) {
+func TestListCmdBareRepoAccepted(t *testing.T) {
 	dir := t.TempDir()
 	if _, err := git.Run(dir, "init", "-q", "--bare"); err != nil {
 		t.Fatalf("git init --bare: %v", err)
 	}
-	if _, err := execRoot(t, "list", "--repo", dir); err == nil {
-		t.Fatal("expected error for a bare --repo target")
+	out, err := execRoot(t, "list", "--repo", dir)
+	if err != nil {
+		t.Fatalf("pmt list on a bare --repo target: %v (Phase 7c: bare repos are supported)", err)
+	}
+	if !strings.Contains(out, "No issues found") {
+		t.Errorf("output %q should show the normal empty-list message", out)
 	}
 }
 

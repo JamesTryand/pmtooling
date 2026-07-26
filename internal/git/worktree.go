@@ -1,12 +1,21 @@
 package git
 
-import "path/filepath"
+import (
+	"path/filepath"
+	"strings"
+)
 
 // ComputeWorktreePath returns the sibling worktree path for an issue
 // branch, per doc/architecture.md's worktree sibling convention:
 //
-//	worktreesRoot       = <mainRepoRoot's parent>/<mainRepoRoot's basename>.worktrees
+//	worktreesRoot       = <mainRepoRoot's parent>/<basename>.worktrees
 //	issue worktree path = worktreesRoot/<typeName>/<title>
+//
+// <basename> is mainRepoRoot's own basename, with one exception: a bare
+// repo conventionally named "<name>.git" gets a sibling named
+// "<name>.worktrees", not "<name>.git.worktrees" — purely a naming
+// nicety for the common bare-repo naming convention (e.g. a GitHub
+// mirror), not a correctness requirement.
 //
 // If worktreesDirOverride is non-empty (from a repo-local .pmt.yaml's
 // worktrees_dir), it's resolved relative to mainRepoRoot instead of the
@@ -16,7 +25,8 @@ func ComputeWorktreePath(mainRepoRoot, worktreesDirOverride, typeName, title str
 	if worktreesDirOverride != "" {
 		worktreesRoot = filepath.Clean(filepath.Join(mainRepoRoot, worktreesDirOverride))
 	} else {
-		worktreesRoot = filepath.Join(filepath.Dir(mainRepoRoot), filepath.Base(mainRepoRoot)+".worktrees")
+		base := strings.TrimSuffix(filepath.Base(mainRepoRoot), ".git")
+		worktreesRoot = filepath.Join(filepath.Dir(mainRepoRoot), base+".worktrees")
 	}
 	return filepath.Join(worktreesRoot, typeName, title)
 }

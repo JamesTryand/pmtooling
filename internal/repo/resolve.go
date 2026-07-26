@@ -14,10 +14,6 @@ import (
 	"github.com/JamesTryand/pmtooling/internal/git"
 )
 
-// ErrBareRepo is returned when the resolved repo is bare. pmt v1 has no
-// defined worktree location for a bare repo.
-var ErrBareRepo = errors.New("target repo is bare; pmt v1 does not support bare repositories")
-
 // Repo is a fully resolved target repository: its canonical main root
 // (see git.RepoInfo.MainRoot) plus repo-local config.
 type Repo struct {
@@ -34,7 +30,8 @@ type Repo struct {
 //
 // Whatever the source, the result is re-derived to its canonical main
 // root (so invocation from inside a linked/issue worktree still resolves
-// correctly) and rejected if bare.
+// correctly), including for bare repos (Phase 7c) — MainRoot() resolves
+// to the bare repo's own path in that case.
 func Resolve(repoFlag, cwd string, userCfg config.UserConfig) (Repo, error) {
 	root, err := resolveRoot(repoFlag, cwd, userCfg)
 	if err != nil {
@@ -47,9 +44,6 @@ func Resolve(repoFlag, cwd string, userCfg config.UserConfig) (Repo, error) {
 			return Repo{}, fmt.Errorf("%q is not a git repository", root)
 		}
 		return Repo{}, err
-	}
-	if info.IsBare {
-		return Repo{}, ErrBareRepo
 	}
 
 	mainRoot := info.MainRoot()

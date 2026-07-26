@@ -88,15 +88,16 @@ func TestResolveCwdNotRepoFallsBackToDefault(t *testing.T) {
 	assertSameRepo(t, r.Root, repoDir)
 }
 
-func TestResolveBareRepoRejected(t *testing.T) {
+func TestResolveBareRepoAccepted(t *testing.T) {
 	dir := t.TempDir()
 	if _, err := git.Run(dir, "init", "-q", "--bare"); err != nil {
 		t.Fatalf("git init --bare: %v", err)
 	}
-	_, err := Resolve(dir, "", config.UserConfig{})
-	if err != ErrBareRepo {
-		t.Fatalf("Resolve on bare repo: got %v, want ErrBareRepo", err)
+	r, err := Resolve(dir, "", config.UserConfig{})
+	if err != nil {
+		t.Fatalf("Resolve on bare repo: %v (Phase 7c: bare repos are supported)", err)
 	}
+	assertSameRepo(t, r.Root, dir)
 }
 
 func TestResolveLoadsRepoConfig(t *testing.T) {
