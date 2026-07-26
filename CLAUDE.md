@@ -14,9 +14,10 @@
 - Establish a clear plan before starting substantive work
 
 ## Build And Test
-No Go code exists yet. Once `cmd/pmt` exists:
 - `go build ./...`
-- `go test ./...`
+- `go test ./...` (129 tests as of v1 completion, all against real scratch git repos in `t.TempDir()` — never against this repo)
+- `go vet ./...`
+- `go test -race ./...` requires cgo/a C compiler; not available in some dev environments (noted, not required)
 
 ## Safety Rails
 
@@ -31,8 +32,9 @@ No Go code exists yet. Once `cmd/pmt` exists:
 - Read issue metadata via `git show <branch>:README.md`, not the filesystem — it must work with no worktree checked out
 
 ## Verification
-- `go build ./...` and `go test ./...` once code exists
+- `go build ./...` and `go test ./...` must pass
 - Edge-case integration tests run against scratch target repos created in a temp dir, never against `pmtooling` itself
+- doc/edge-cases.md's table is an acceptance checklist — task_plan.md's Phase 6 section maps each row to its covering test(s)
 
 ## Compact Instructions
 Preserve across compaction:

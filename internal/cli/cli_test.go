@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -38,6 +39,26 @@ func execRoot(t *testing.T, args ...string) (stdout string, err error) {
 	root.SetArgs(args)
 	err = root.Execute()
 	return buf.String(), err
+}
+
+// chdir changes the process cwd for the duration of the test and
+// restores it on cleanup — used only for the cwd-based repo-resolution
+// edge cases (no --repo given), since that's the one behavior that can't
+// be exercised through execRoot without actually moving the process.
+func chdir(t *testing.T, dir string) {
+	t.Helper()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatalf("os.Chdir(%s): %v", dir, err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(orig); err != nil {
+			t.Fatalf("restoring cwd to %s: %v", orig, err)
+		}
+	})
 }
 
 func TestRootCmdHasExpectedSubcommands(t *testing.T) {
@@ -240,5 +261,73 @@ func TestListCmdBareRepoRejected(t *testing.T) {
 	}
 	if _, err := execRoot(t, "list", "--repo", dir); err == nil {
 		t.Fatal("expected error for a bare --repo target")
+	}
+}
+
+// TestNoRepoAndCwdNotARepo covers doc/edge-cases.md's "running pmt outside
+// any git repo, no --repo/config given" row through the actual CLI, not
+// just internal/repo.Resolve in isolation.
+func TestNoRepoAndCwdNotARepo(t *testing.T) {
+	chdir(t, t.TempDir()) // deliberately not a git repo
+	if _, err := execRoot(t, "list"); err == nil {
+		t.Fatal("expected error when cwd isn't a repo and no --repo was given")
+	}
+}
+
+// TestListCmdFromInsideIssueWorktree and TestNewCmdFromInsideIssueWorktree
+// cover doc/edge-cases.md's "running pmt from inside one of its own issue
+// worktrees" row through the actual CLI (cwd-based resolution, no
+// --repo), not just internal/repo.Resolve/git.Discover in isolation.
+
+func TestListCmdFromInsideIssueWorktree(t *testing.T) {
+	dir := initRepo(t)
+	if _, err := execRoot(t, "template", "new", "bug", "--repo", dir); err != nil {
+		t.Fatalf("pmt template new: %v", err)
+	}
+	if _, err := execRoot(t, "new", "bug/foo", "--repo", dir); err != nil {
+		t.Fatalf("pmt new: %v", err)
+	}
+
+	worktreePath := git.ComputeWorktreePath(dir, "", "bug", "foo")
+	chdir(t, worktreePath)
+
+	out, err := execRoot(t, "list") // no --repo: must resolve via cwd -> MainRoot()
+	if err != nil {
+		t.Fatalf("pmt list: %v", err)
+	}
+	if !strings.Contains(out, "bug/foo") {
+		t.Errorf("output %q should list bug/foo even when run from inside its own worktree", out)
+	}
+}
+
+func TestNewCmdFromInsideIssueWorktree(t *testing.T) {
+	dir := initRepo(t)
+	if _, err := execRoot(t, "template", "new", "bug", "--repo", dir); err != nil {
+		t.Fatalf("pmt template new: %v", err)
+	}
+	if _, err := execRoot(t, "new", "bug/foo", "--repo", dir); err != nil {
+		t.Fatalf("pmt new: %v", err)
+	}
+
+	worktreePath := git.ComputeWorktreePath(dir, "", "bug", "foo")
+	chdir(t, worktreePath)
+
+	// Creating a second issue from inside the first issue's worktree must
+	// still land in the main repo, not get confused into operating on the
+	// worktree as if it were its own target repo.
+	out, err := execRoot(t, "new", "bug/bar") // no --repo
+	if err != nil {
+		t.Fatalf("pmt new: %v", err)
+	}
+	if !strings.Contains(out, "bug/bar") {
+		t.Errorf("output %q should mention the newly created bug/bar issue", out)
+	}
+
+	list, err := execRoot(t, "list", "--repo", dir)
+	if err != nil {
+		t.Fatalf("pmt list: %v", err)
+	}
+	if !strings.Contains(list, "bug/foo") || !strings.Contains(list, "bug/bar") {
+		t.Errorf("pmt list --repo %s = %q, want both bug/foo and bug/bar", dir, list)
 	}
 }
