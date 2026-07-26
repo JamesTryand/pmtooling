@@ -66,6 +66,27 @@ func Run(dir string, args ...string) (string, error) {
 	return "", fmt.Errorf("git %s: %w", strings.Join(args, " "), runErr)
 }
 
+// ReadBlob returns the raw, untrimmed content of a blob (e.g.
+// "<ref>:README.md" or a bare blob SHA) via `git show`. Unlike Run/RunRaw
+// (which trim output — fine for status codes and single-line values but
+// wrong for file content), this preserves exact bytes, needed by callers
+// that re-render and recommit the content.
+func ReadBlob(dir, treeish string) ([]byte, error) {
+	cmd := exec.Command("git", "show", treeish)
+	cmd.Dir = dir
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
+	if err := cmd.Run(); err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			return nil, &ExitError{Args: []string{"show", treeish}, Code: exitErr.ExitCode(), Stderr: strings.TrimSpace(stderrBuf.String())}
+		}
+		return nil, fmt.Errorf("git show %s: %w", treeish, err)
+	}
+	return stdoutBuf.Bytes(), nil
+}
+
 // Lines splits git output that uses one result per line, returning nil
 // (not a single empty-string element) for empty output.
 func Lines(output string) []string {

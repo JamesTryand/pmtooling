@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/JamesTryand/pmtooling/internal/archive"
 	"github.com/JamesTryand/pmtooling/internal/issue"
 	"github.com/JamesTryand/pmtooling/internal/repo"
 )
@@ -15,6 +16,7 @@ import (
 func newListCmd(resolve func() (repo.Repo, error)) *cobra.Command {
 	var typeFilter string
 	var jsonOut bool
+	var archived bool
 
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -24,6 +26,18 @@ func newListCmd(resolve func() (repo.Repo, error)) *cobra.Command {
 			r, err := resolve()
 			if err != nil {
 				return err
+			}
+			if archived {
+				archivedIssues, err := archive.ListArchived(r.Root, typeFilter)
+				if err != nil {
+					return err
+				}
+				if jsonOut {
+					enc := json.NewEncoder(cmd.OutOrStdout())
+					enc.SetIndent("", "  ")
+					return enc.Encode(archivedIssues)
+				}
+				return renderArchivedTable(cmd.OutOrStdout(), archivedIssues)
 			}
 			issues, err := issue.ListIssues(r.Root, r.Config.WorktreesDir, typeFilter)
 			if err != nil {
@@ -39,7 +53,25 @@ func newListCmd(resolve func() (repo.Repo, error)) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&typeFilter, "type", "", "filter by issue type")
 	cmd.Flags().BoolVar(&jsonOut, "json", false, "output as JSON")
+	cmd.Flags().BoolVar(&archived, "archived", false, "list archived (closed) issues instead of live ones")
 	return cmd
+}
+
+func renderArchivedTable(w io.Writer, issues []archive.ArchivedIssue) error {
+	if len(issues) == 0 {
+		fmt.Fprintln(w, "No archived issues found.")
+		return nil
+	}
+	tw := tabwriter.NewWriter(w, 0, 2, 2, ' ', 0)
+	fmt.Fprintln(tw, "BRANCH\tCLOSED")
+	for _, iss := range issues {
+		closed := iss.Closed
+		if iss.Unparseable {
+			closed = "<unparseable>"
+		}
+		fmt.Fprintf(tw, "%s\t%s\n", iss.Branch, closed)
+	}
+	return tw.Flush()
 }
 
 func renderIssueTable(w io.Writer, issues []issue.Issue) error {

@@ -28,5 +28,8 @@ func NewRootCmd() *cobra.Command {
 	root.AddCommand(newNewCmd(resolve))
 	root.AddCommand(newTemplateCmd(resolve))
 	root.AddCommand(newListCmd(resolve))
+	root.AddCommand(newRepoCmd())
+	root.AddCommand(newCloseCmd(resolve))
+	root.AddCommand(newReopenCmd(resolve))
 	return root
 }

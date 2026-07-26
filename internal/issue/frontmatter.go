@@ -20,6 +20,7 @@ type Meta struct {
 	Status      string `yaml:"status"`
 	Created     string `yaml:"created"`
 	TemplateRef string `yaml:"template_ref"`
+	Closed      string `yaml:"closed,omitempty"` // RFC3339; set by `pmt close`, cleared by `pmt reopen`
 }
 
 type frontMatterRoot struct {

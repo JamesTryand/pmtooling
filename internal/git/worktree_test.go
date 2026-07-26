@@ -49,3 +49,46 @@ func TestWorktreeAdd(t *testing.T) {
 		t.Errorf("`git worktree list` should mention the new branch:\n%s", out)
 	}
 }
+
+func TestIsWorktreeDirtyClean(t *testing.T) {
+	mainDir := initRepo(t)
+	commitFile(t, mainDir, "f.txt", "hello")
+	if _, err := Run(mainDir, "branch", "bug/0001"); err != nil {
+		t.Fatal(err)
+	}
+	worktreePath := filepath.Join(t.TempDir(), "bug", "0001")
+	if err := WorktreeAdd(mainDir, worktreePath, "bug/0001"); err != nil {
+		t.Fatalf("WorktreeAdd: %v", err)
+	}
+
+	dirty, err := IsWorktreeDirty(worktreePath)
+	if err != nil {
+		t.Fatalf("IsWorktreeDirty: %v", err)
+	}
+	if dirty {
+		t.Error("freshly checked-out worktree should not be dirty")
+	}
+}
+
+func TestIsWorktreeDirtyWithUncommittedChanges(t *testing.T) {
+	mainDir := initRepo(t)
+	commitFile(t, mainDir, "f.txt", "hello")
+	if _, err := Run(mainDir, "branch", "bug/0001"); err != nil {
+		t.Fatal(err)
+	}
+	worktreePath := filepath.Join(t.TempDir(), "bug", "0001")
+	if err := WorktreeAdd(mainDir, worktreePath, "bug/0001"); err != nil {
+		t.Fatalf("WorktreeAdd: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(worktreePath, "f.txt"), []byte("modified"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	dirty, err := IsWorktreeDirty(worktreePath)
+	if err != nil {
+		t.Fatalf("IsWorktreeDirty: %v", err)
+	}
+	if !dirty {
+		t.Error("worktree with an uncommitted modification should be dirty")
+	}
+}

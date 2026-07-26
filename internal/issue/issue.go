@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/JamesTryand/pmtooling/internal/config"
@@ -59,7 +58,7 @@ func Create(mainRepoRoot string, repoCfg config.RepoConfig, typeName, title stri
 	}
 
 	worktreePath := git.ComputeWorktreePath(mainRepoRoot, repoCfg.WorktreesDir, typeName, resolvedTitle)
-	if err := checkWorktreePathFree(worktreePath); err != nil {
+	if err := CheckWorktreePathFree(worktreePath); err != nil {
 		return Result{}, err
 	}
 
@@ -73,7 +72,15 @@ func Create(mainRepoRoot string, repoCfg config.RepoConfig, typeName, title stri
 	if err := git.WorktreeAdd(mainRepoRoot, worktreePath, branch); err != nil {
 		return Result{}, err
 	}
-	if err := stampReadme(worktreePath, typeName, resolvedTitle, branch, templateCommit); err != nil {
+	_, err = StampReadmeInWorktree(worktreePath, fmt.Sprintf("pmt: initialize issue %s", branch), func(meta *Meta) {
+		meta.Type = typeName
+		meta.Title = resolvedTitle
+		meta.Branch = branch
+		meta.Status = "open"
+		meta.Created = time.Now().UTC().Format(time.RFC3339)
+		meta.TemplateRef = templateCommit
+	})
+	if err != nil {
 		return Result{}, err
 	}
 
@@ -118,47 +125,15 @@ func resolveTitle(mainRepoRoot, typeName, title string, padWidth int) (branch, r
 	}
 }
 
-func checkWorktreePathFree(path string) error {
+// CheckWorktreePathFree errors if path is already occupied by a
+// directory that isn't a worktree pmt is about to create itself — pmt
+// never deletes a directory it didn't just create. Shared by `pmt new`
+// and `pmt reopen`, which both need to check this before calling
+// git.WorktreeAdd.
+func CheckWorktreePathFree(path string) error {
 	if _, err := os.Stat(path); err == nil {
 		return fmt.Errorf("%w: %s (remove it manually — and run `git worktree prune` if it was a stale worktree — before retrying)", ErrOrphanedWorktreePath, path)
 	} else if !os.IsNotExist(err) {
-		return err
-	}
-	return nil
-}
-
-// stampReadme fills in the issue-specific README.md front-matter fields
-// (doc/templates.md#readme-front-matter-schema) and commits the result
-// inside the issue's own worktree — this is what lets `pmt list` (Phase
-// 5) read metadata via `git show <branch>:README.md` with no worktree
-// present.
-func stampReadme(worktreePath, typeName, title, branch, templateCommit string) error {
-	path := filepath.Join(worktreePath, "README.md")
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("reading %s: %w", path, err)
-	}
-
-	meta, body, _ := Parse(content) // ok ignored: absent/corrupted front matter just starts from a fresh Meta{}
-	meta.Type = typeName
-	meta.Title = title
-	meta.Branch = branch
-	meta.Status = "open"
-	meta.Created = time.Now().UTC().Format(time.RFC3339)
-	meta.TemplateRef = templateCommit
-
-	rendered, err := Render(meta, body)
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(path, rendered, 0o644); err != nil {
-		return fmt.Errorf("writing %s: %w", path, err)
-	}
-
-	if _, err := git.Run(worktreePath, "add", "README.md"); err != nil {
-		return err
-	}
-	if _, err := git.Run(worktreePath, "commit", "-q", "-m", fmt.Sprintf("pmt: initialize issue %s", branch)); err != nil {
 		return err
 	}
 	return nil

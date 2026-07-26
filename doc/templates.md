@@ -36,6 +36,7 @@ pmt:
   status: open
   created: ""
   template_ref: ""
+  closed: ""
 ---
 
 # <title>
@@ -48,8 +49,15 @@ Describe the issue here.
 | `type` | template author (fixed per template) | issue type / template name |
 | `title` | `pmt new` | the title segment, user-given or auto-generated |
 | `branch` | `pmt new` | full `<type>/<title>`, for self-describing greppability without parsing git |
-| `status` | `pmt new` (always `open` in v1) | lifecycle state — only `open` is ever written in v1; field exists for forward compatibility with a future `pmt close` |
+| `status` | `pmt new` (`open`), `pmt close` (`closed`), `pmt reopen` (`open` again) | lifecycle state |
 | `created` | `pmt new` | RFC3339 UTC timestamp |
 | `template_ref` | `pmt new` | commit SHA of the template branch at the moment the issue was created, for traceability |
+| `closed` | `pmt close` (RFC3339 UTC timestamp), cleared by `pmt reopen` | when the issue was last closed; `omitempty` — absent entirely until first closed |
 
 `pmt new` parses the template's existing front matter (inserting a fresh block if absent), fills in the issue-specific fields, writes the file, and commits it inside the new issue's own worktree. This commit is what lets `pmt list` read metadata via `git show <branch>:README.md` without needing any worktree to exist.
+
+## Archiving issues (`pmt close` / `pmt reopen`)
+
+`pmt close <type>/<title>` doesn't delete an issue's history — it merges the issue's final tree into a dedicated `refs/heads/pmt/archive` branch (auto-created on first use) under the path `<type>/<title>/`, then removes the worktree (if any) and deletes the issue branch. The archive commit's parents are `[issue-tip, previous-archive-tip-if-any]` — this is what keeps the closed issue's commits reachable (and therefore safe from `git gc`) even after the branch itself is deleted, and lets `pmt reopen <type>/<title>` recreate the branch at its **exact original tip**, full history intact, by reading that commit's first parent. No separate manifest file is needed; this is pure git structure, matching the project's existing "grep-able files in git" philosophy one level deeper.
+
+**The archive is append-only in spirit**: `pmt reopen` never removes anything from `refs/heads/pmt/archive` — it only recreates the live branch. If that issue is closed again later, the *same* `<type>/<title>` path is updated in place (via `ls-tree`+`mktree` tree surgery — replacing just that one entry, keeping every sibling issue's entry unchanged by SHA reference) with the new content, while the full commit history — including everything from before the reopen — remains walkable through ordinary commit ancestry, since the recreated branch's later commits naturally have the original pre-close tip as an ancestor. Until an issue is closed again, `pmt list --archived` keeps showing its last-archived (now potentially stale) snapshot — this is intentional: the archive reflects "what this looked like when it was last closed," not live state.

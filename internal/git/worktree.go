@@ -27,3 +27,13 @@ func WorktreeAdd(dir, path, branch string) error {
 	_, err := Run(dir, "worktree", "add", path, branch)
 	return err
 }
+
+// IsWorktreeDirty reports whether worktreePath has uncommitted changes
+// (`git status --porcelain` is non-empty). Run with dir = worktreePath.
+func IsWorktreeDirty(worktreePath string) (bool, error) {
+	out, err := Run(worktreePath, "status", "--porcelain")
+	if err != nil {
+		return false, err
+	}
+	return out != "", nil
+}

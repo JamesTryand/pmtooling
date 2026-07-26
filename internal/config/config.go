@@ -31,13 +31,41 @@ type RepoConfig struct {
 	TitlePadWidth int    `yaml:"title_pad_width"`
 }
 
-// UserConfigPath returns the path pmt reads/writes user-level config from.
+// UserConfigPath returns the path pmt reads/writes user-level config
+// from. Honors PMT_CONFIG_HOME (analogous to XDG_CONFIG_HOME) as an
+// override of the base directory — this exists primarily so tests for
+// `pmt repo add/remove/set-default` (which write this file) never touch
+// a real developer's config, but it's also a legitimate way to point pmt
+// at an isolated config elsewhere.
 func UserConfigPath() (string, error) {
+	if override := os.Getenv("PMT_CONFIG_HOME"); override != "" {
+		return filepath.Join(override, "pmt", "config.yaml"), nil
+	}
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", fmt.Errorf("resolving user config dir: %w", err)
 	}
 	return filepath.Join(dir, "pmt", "config.yaml"), nil
+}
+
+// SaveUserConfig writes cfg to the user-level config path, creating
+// parent directories as needed.
+func SaveUserConfig(cfg UserConfig) error {
+	path, err := UserConfigPath()
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
+	}
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		return fmt.Errorf("serializing user config: %w", err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		return fmt.Errorf("writing %s: %w", path, err)
+	}
+	return nil
 }
 
 // LoadUserConfig loads the user-level config. A missing file is not an

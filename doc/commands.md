@@ -1,4 +1,6 @@
-# Commands (v1)
+# Commands
+
+## v1 command surface
 
 ```
 pmt new <type>[/<title>]  [--repo <path-or-nickname>]
@@ -7,7 +9,54 @@ pmt template list         [--repo <path-or-nickname>]
 pmt list [--type <type>] [--json] [--repo <path-or-nickname>]
 ```
 
-Nothing else ships in v1. See `doc/architecture.md` for non-goals and the v2 backlog.
+This is everything v1 shipped with. See `doc/architecture.md` for what was deliberately out of scope for v1 and the original v2 backlog note.
+
+## v2 additions
+
+### `pmt repo add/list/remove/set-default` (Phase 7a)
+
+```
+pmt repo add <nickname> <path> [--force]
+pmt repo list
+pmt repo remove <nickname>
+pmt repo set-default <nickname>
+```
+
+Manages the user-level `repos:` nickname map (see doc/architecture.md#config) — previously hand-edit-only YAML.
+
+- `add`: validates `<path>` resolves via `git.Discover` (a real git repo); errors on an existing nickname unless `--force`.
+- `list`: prints `nickname -> path`, marking whichever one is `default_repo` with `(default)`.
+- `remove`: errors on an unknown nickname; clears `default_repo` if it pointed at the removed nickname (and says so).
+- `set-default`: errors on an unknown nickname.
+
+These are entirely local, deterministic config edits — no new git mechanics.
+
+### `pmt close <type>/<title>` / `pmt reopen <type>/<title>` / `pmt list --archived` (Phase 7b)
+
+```
+pmt close <type>/<title>    [--repo <path-or-nickname>]
+pmt reopen <type>/<title>   [--repo <path-or-nickname>]
+pmt list --archived [--type <type>] [--json] [--repo <path-or-nickname>]
+```
+
+See doc/templates.md#archiving-issues-pmt-close--pmt-reopen for the full design and rationale (append-only archive, no manifest file). Summary of `pmt close`:
+
+1. Error if the branch doesn't exist.
+2. Determine the issue's worktree state via `git worktree list --porcelain`: registered-and-present, registered-but-prunable (directory manually deleted), or never registered (a hand-created branch). A present worktree with uncommitted changes (`git status --porcelain` non-empty) is refused, not force-cleaned.
+3. Stamp `README.md` with `status: closed` + a `closed` RFC3339 timestamp — via the worktree if one is present on disk, otherwise via plumbing directly on the branch (mirroring how templates are created without a worktree).
+4. Merge the stamped tip's tree into `refs/heads/pmt/archive` under `<type>/<title>/` (creating that branch on first use), via `ls-tree` + `mktree` tree surgery — replacing that one entry if it already existed (a prior close before a reopen), keeping every sibling issue's entry unchanged by SHA reference. Commit parents: `[stamped-tip, previous-archive-tip-if-any]`.
+5. Remove the worktree if one was registered (`git worktree remove` handles both the present and prunable cases).
+6. `git branch -D <type>/<title>`.
+
+`pmt reopen <type>/<title>`:
+
+1. Error if a live branch of that name already exists.
+2. Walk `refs/heads/pmt/archive` backward via each commit's second parent, comparing the tree entry at `<type>/<title>` against the predecessor's, to find the *most recent* close (not necessarily the first) — error (`ErrNotArchived`) if never archived.
+3. `git branch <type>/<title> <that commit's first parent>` — recreates the branch at its exact original tip, full history intact.
+4. `git worktree add` a fresh worktree (after the same orphaned-directory check `pmt new` uses).
+5. Stamp `README.md` back to `status: open`, clearing `closed`, as one more commit.
+
+The archive entry itself is left untouched by reopen (see doc/templates.md) — it only disappears from `pmt list --archived` once the same issue is closed again.
 
 ## `pmt new <type>[/<title>]`
 

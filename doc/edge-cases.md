@@ -17,9 +17,22 @@ Explicit v1 behavior for every edge case identified during design. This table do
 | Hand-edited/corrupted README front matter | Non-fatal parse failure; the row still lists, metadata column shows `<unparseable>` |
 | Target repo is bare | Explicit v1 error — the sibling-worktree convention has no defined location for a bare repo |
 
+## Phase 7b edge cases (`pmt close` / `pmt reopen`)
+
+| Edge case | Resolution |
+|---|---|
+| `pmt close` on a branch that doesn't exist | Error naming the branch |
+| `pmt close` with uncommitted changes in the worktree | Refused (`ErrDirtyWorktree`), not force-cleaned; nothing is stamped, archived, removed, or deleted |
+| `pmt close` when the worktree is registered but its directory was manually deleted (prunable) | Stamped via plumbing directly on the branch (no directory to write into); `git worktree remove` still cleans up the stale registration so the branch can be deleted |
+| `pmt close` on a hand-created branch that never had a worktree | Stamped via plumbing; worktree removal step is skipped entirely (nothing was ever registered) |
+| `pmt reopen` on a name with no archived entry | Error (`ErrNotArchived`) |
+| `pmt reopen` when a live branch of that name already exists | Error — refuses to recreate over a live branch |
+| `pmt reopen` after the same issue was previously closed, reopened, and closed again | Finds the *most recent* close (tree-content comparison while walking the archive's second-parent chain), not the stale first one — this is the exact scenario an early parent-position-based design got wrong; see task_plan.md's Decisions Made |
+| Two different issues both ever archived | Fully independent — closing/reopening one never touches the other's archive entry (verified: `ls-tree`+`mktree` tree surgery replaces only the target path, keeps every sibling by SHA reference) |
+
 ## Deliberately out of scope for v1
 
-- Push, PR/issue API integration (GitHub/GitLab) — purely local git for now.
-- `pmt close` / issue cleanup — the `status` field exists in the README schema for forward compatibility, but no writer for any value other than `open` exists yet.
-- Config-editing subcommands (`pmt repo add/list/remove`) — user/repo config is hand-edited YAML.
+- Push, PR/issue API integration (GitHub/GitLab) — purely local git for now, and still deferred as of the Phase 7 v2 work (not selected for implementation).
+- ~~`pmt close` / issue cleanup~~ — implemented as Phase 7b (`pmt close`/`pmt reopen` with an append-only archive workflow, see doc/templates.md and doc/commands.md).
+- ~~Config-editing subcommands (`pmt repo add/list/remove`)~~ — implemented as Phase 7a: `pmt repo add/list/remove/set-default`, see doc/commands.md.
 - Release pipeline — `go install` only.

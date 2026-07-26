@@ -96,6 +96,56 @@ func TestLoadRepoConfigPadWidthDefaultsWhenOmitted(t *testing.T) {
 	}
 }
 
+func TestUserConfigPathHonorsOverride(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PMT_CONFIG_HOME", dir)
+
+	path, err := UserConfigPath()
+	if err != nil {
+		t.Fatalf("UserConfigPath: %v", err)
+	}
+	want := filepath.Join(dir, "pmt", "config.yaml")
+	if path != want {
+		t.Errorf("UserConfigPath() = %q, want %q", path, want)
+	}
+}
+
+func TestSaveAndLoadUserConfigRoundTrip(t *testing.T) {
+	t.Setenv("PMT_CONFIG_HOME", t.TempDir())
+
+	cfg := UserConfig{
+		Repos:       map[string]string{"clientA": "/work/clientA"},
+		DefaultRepo: "clientA",
+	}
+	if err := SaveUserConfig(cfg); err != nil {
+		t.Fatalf("SaveUserConfig: %v", err)
+	}
+
+	got, err := LoadUserConfig()
+	if err != nil {
+		t.Fatalf("LoadUserConfig: %v", err)
+	}
+	if got.DefaultRepo != cfg.DefaultRepo || got.Repos["clientA"] != cfg.Repos["clientA"] {
+		t.Errorf("LoadUserConfig() = %+v, want %+v", got, cfg)
+	}
+}
+
+func TestSaveUserConfigCreatesParentDirs(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("PMT_CONFIG_HOME", filepath.Join(dir, "nested", "does-not-exist-yet"))
+
+	if err := SaveUserConfig(UserConfig{DefaultRepo: "x"}); err != nil {
+		t.Fatalf("SaveUserConfig: %v", err)
+	}
+	path, err := UserConfigPath()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Errorf("expected config file to exist at %s: %v", path, err)
+	}
+}
+
 func TestLoadRepoConfigInvalidYAML(t *testing.T) {
 	dir := t.TempDir()
 	if err := os.WriteFile(RepoConfigPath(dir), []byte("worktrees_dir: [oops"), 0o644); err != nil {

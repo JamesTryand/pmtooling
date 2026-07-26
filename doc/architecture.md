@@ -37,13 +37,14 @@ git rev-parse --path-format=absolute --git-dir --git-common-dir --is-bare-reposi
 
 ## Config
 
-- **User-level** (`os.UserConfigDir()`, e.g. `%APPDATA%\pmt\config.yaml` on Windows):
+- **User-level** (`os.UserConfigDir()`, e.g. `%APPDATA%\pmt\config.yaml` on Windows; overridable via the `PMT_CONFIG_HOME` env var, analogous to `XDG_CONFIG_HOME` — mainly so tests never touch a real developer's config, but also usable to point pmt at an isolated config elsewhere):
   ```yaml
   repos:
     clientA: C:\work\clientA
     clientB: /home/james/work/clientB
   default_repo: clientA   # optional
   ```
+  Managed via `pmt repo add/list/remove/set-default` (§ below) — no longer hand-edit-only as of Phase 7a.
 - **Repo-local** `.pmt.yaml` at the target repo's root (intended to be committed to the target repo, like `.editorconfig`):
   ```yaml
   worktrees_dir: ../clientA.worktrees   # optional override
