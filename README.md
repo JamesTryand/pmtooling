@@ -26,6 +26,8 @@ go install github.com/<you>/pmtooling/cmd/pmt@latest
 
 [.claude/skills/pmt/SKILL.md](.claude/skills/pmt/SKILL.md) teaches Claude how to *use* `pmt` day-to-day (commands, workflows, gotchas) — separate from the `doc/` files below, which document how `pmt` itself is built. Copy the `pmt` folder into `~/.claude/skills/pmt` (available everywhere) or a target repo's `.claude/skills/pmt` (that project only) to use it outside this repo.
 
+The skill folder also carries two deeper reference files: [building-templates.md](.claude/skills/pmt/building-templates.md) (shaping a template's `CLAUDE.md`, permissions, MCP servers, and skills for the issue kind it produces) and [workflow-patterns.md](.claude/skills/pmt/workflow-patterns.md) (turning a fresh issue into a concrete plan, and when to reach for iterative/loop-based work).
+
 ## Documentation
 
 - [doc/architecture.md](doc/architecture.md) — repo separation, worktree layout, repo resolution, config

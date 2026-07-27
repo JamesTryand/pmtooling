@@ -23,6 +23,8 @@ Every new template branch is created with:
 - **`.gitignore`** — a minimal, language-agnostic stub; template authors should replace it with something appropriate to the target repo's stack.
 - **`.claude/settings.json`** — ships as `{}`. pmt's only contract is copying this file verbatim from the template into every issue worktree created from it; permission/allow-list content is entirely the template author's responsibility. This is also where a template grants access to an external code repo the issue pertains to (`permissions.additionalDirectories`) — see `doc/external-repos.md`. Since `pmt new` branches from the template's *live* tip rather than a fixed scaffold snapshot, any file a template author adds later — a fuller `settings.json`, `.claude/skills/`, `.mcp.json`, anything — propagates to every subsequently-created issue automatically, with no pmt changes needed.
 
+For usage-oriented guidance on *what* to put in each of these per issue kind (permissions, MCP servers, project-scoped skills, and workflow patterns like issue-initialization checklists or iterative loops), see [.claude/skills/pmt/building-templates.md](../.claude/skills/pmt/building-templates.md) and [.claude/skills/pmt/workflow-patterns.md](../.claude/skills/pmt/workflow-patterns.md) — written for agent consumption via the `pmt` skill, but equally useful for a human template author.
+
 ## README front-matter schema
 
 Every issue's `README.md` carries:

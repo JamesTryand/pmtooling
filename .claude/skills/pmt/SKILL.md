@@ -73,3 +73,8 @@ pmt's target repo tracks *issues*; the actual codebase an issue is about sometim
 - `pmt close` never force-cleans a dirty worktree — it errors instead. Don't work around this by discarding changes without the user's explicit OK.
 - Auto-generated titles (`bug/0001`, `bug/0002`, ...) are scoped per type and never reused, even after an issue is closed or deleted — a gap in the numbering isn't a sign anything's wrong.
 - Templates can carry more than the 4 starter files — MCP configs, `.claude/skills/`, permission grants for external repos, anything a template author has committed. Whatever's on the template branch at the moment `pmt new` runs is exactly what the new issue inherits.
+
+## Going deeper
+
+- [building-templates.md](building-templates.md) — how to shape a template's `CLAUDE.md`, `.claude/settings.json` permissions, `.mcp.json`, and project-scoped skills for the kind of issue it produces, plus the `.claude/`-gitignore footgun to avoid.
+- [workflow-patterns.md](workflow-patterns.md) — turning a freshly created issue's placeholder README into a concrete plan, and when to reach for `/loop` or a plan-file-driven iteration instead of a single pass.
