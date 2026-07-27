@@ -32,8 +32,13 @@ FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --index-filter \
 git push --force "$GITHUB_URL" master
 
 if [ -n "$VERSION" ]; then
-  git tag -a "$VERSION" -m "$VERSION"
-  git push --force "$GITHUB_URL" "$VERSION"
+  # Push the tag directly via refspec rather than creating a local tag
+  # object first: this clone inherits whatever tags the source repo has
+  # (including origin's own release tags), and filter-branch's
+  # --tag-name-filter already rewrites any same-named one onto the new
+  # commit -- creating another local tag of the same name would just
+  # collide with that. A direct SHA:refspec push sidesteps it entirely.
+  git push --force "$GITHUB_URL" "$(git rev-parse master):refs/tags/$VERSION"
   echo "Tagged and pushed $VERSION to the github remote."
 fi
 
