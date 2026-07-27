@@ -4,11 +4,11 @@ Source for `pmt` — a CLI tool that manages project issues (bugs, features, etc
 
 ## What pmt is for
 
-Tracking work usually means juggling two things that don't naturally stay in sync: a ticket, issue, or doc describing *what* needs doing, and a codebase where you actually *do* it. `pmt` closes that gap by making the issue itself a first-class part of the repo, rather than an external record you have to keep cross-referencing.
+If you've got a bunch of things you want to do with Claude, `pmt` is a straightforward way to do it: everything lives in one git repo, but each piece of work gets its own branch and worktree — so all your working notes and projects sit in a single place, all committed, while staying completely distinct from each other.
 
-Concretely: every issue is a real git branch, checked out into its own isolated git worktree, so you can work on several issues side by side without stashing or switching branches in a single checkout. And because each issue is scaffolded from a **template** branch, its starting instructions, permissions, and integrations travel with it automatically the moment it's created — nobody has to remember to set them up by hand each time.
+It plays nicely with wherever the real work is tracked. With the Azure DevOps MCP set up, workspaces are typically named after the work item — so Claude pulls in the ticket and its comments straight away to figure out what needs doing. Same idea works for Jira, or anything else with an MCP server. Or, using GitHub's own commands and skills instead, you can just as easily do one workspace per issue or pull request.
 
-It's built with Claude Code specifically in mind: a template can carry a `CLAUDE.md`, `.claude/settings.json` permissions, MCP server configs, and project-scoped skills, all tailored to that kind of issue. So `pmt new` doesn't just start a branch — it hands off a fully briefed working environment for Claude to pick up immediately.
+It's built with Claude Code specifically in mind: a template can carry a `CLAUDE.md`, `.claude/settings.json` permissions, MCP server configs, and project-scoped skills, all tailored to that kind of issue — so `pmt new` doesn't just start a branch, it hands off a fully briefed working environment.
 
 ## Mental model
 
