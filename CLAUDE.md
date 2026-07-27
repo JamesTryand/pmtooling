@@ -11,6 +11,7 @@
 - `doc/external-repos.md` — recommended pattern for an issue worktree to reach a separate "code repo" (Claude Code `additionalDirectories` permission, not git submodules/nesting)
 - `.claude/skills/pmt/SKILL.md` — the user-facing Claude Code skill teaching an agent how to *use* `pmt` (commands, workflows, gotchas); distinct from the `doc/` files above, which document how `pmt` is *built*
 - `.claude/skills/pmt/building-templates.md`, `.claude/skills/pmt/workflow-patterns.md` — deeper skill reference files: shaping a template's permissions/MCP/skills per issue kind, and issue-initialization/loop workflow guidance
+- `task_plan.md`, `progress.md`, `findings.md` — private working notes (phase checklists, decisions, session log). Kept on the primary remote only; deliberately excluded from the public GitHub mirror by `scripts/publish-github.sh`, so treat them as optional throughout this file — present here, absent there
 
 ## User Preferences
 - Ask first when something important is unclear or uncertain
@@ -18,7 +19,7 @@
 
 ## Build And Test
 - `go build ./...`
-- `go test ./...` (all against real scratch git repos in `t.TempDir()` — never against this repo; see progress.md for the current test count)
+- `go test ./...` (all against real scratch git repos in `t.TempDir()` — never against this repo; see progress.md for the current test count, if present)
 - `go vet ./...`
 - `go test -race ./...` requires cgo/a C compiler; not available in some dev environments (noted, not required)
 
@@ -37,7 +38,7 @@
 ## Verification
 - `go build ./...` and `go test ./...` must pass
 - Edge-case integration tests run against scratch target repos created in a temp dir, never against `pmtooling` itself
-- doc/edge-cases.md's table is an acceptance checklist — task_plan.md's Phase 6 section maps each row to its covering test(s)
+- doc/edge-cases.md's table is an acceptance checklist — task_plan.md's Phase 6 section maps each row to its covering test(s), if present
 
 ## Compact Instructions
 Preserve across compaction:

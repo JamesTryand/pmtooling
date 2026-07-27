@@ -125,3 +125,7 @@ The skill folder also carries two deeper reference files: [building-templates.md
 - [doc/templates.md](doc/templates.md) — template ref namespace, scaffold files, README metadata schema
 - [doc/edge-cases.md](doc/edge-cases.md) — edge-case behavior and implementation checklist
 - [doc/external-repos.md](doc/external-repos.md) — recommended pattern for an issue worktree to reach a separate code repo
+
+## About this mirror
+
+This GitHub repo is a showcase mirror of the primary repo, republished periodically via `scripts/publish-github.sh`. It carries the code, docs, and skill — a few private working-notes files (phase checklists, decision log) referenced in `CLAUDE.md` are intentionally kept off this mirror, so its commit history won't match the primary repo's.
