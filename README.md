@@ -22,9 +22,14 @@ go install github.com/<you>/pmtooling/cmd/pmt@latest
 
 `pmt` v1 is implemented: `new`, `template new`, `template list`, and `list` all work end-to-end. See `doc/edge-cases.md` for what's explicitly out of scope for v1 (issue cleanup, remote/PR integration, config-editing subcommands).
 
+## Claude Code skill
+
+[.claude/skills/pmt/SKILL.md](.claude/skills/pmt/SKILL.md) teaches Claude how to *use* `pmt` day-to-day (commands, workflows, gotchas) — separate from the `doc/` files below, which document how `pmt` itself is built. Copy the `pmt` folder into `~/.claude/skills/pmt` (available everywhere) or a target repo's `.claude/skills/pmt` (that project only) to use it outside this repo.
+
 ## Documentation
 
 - [doc/architecture.md](doc/architecture.md) — repo separation, worktree layout, repo resolution, config
 - [doc/commands.md](doc/commands.md) — command reference, exact git operations
 - [doc/templates.md](doc/templates.md) — template ref namespace, scaffold files, README metadata schema
 - [doc/edge-cases.md](doc/edge-cases.md) — edge-case behavior and implementation checklist
+- [doc/external-repos.md](doc/external-repos.md) — recommended pattern for an issue worktree to reach a separate code repo

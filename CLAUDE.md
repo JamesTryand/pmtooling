@@ -9,6 +9,7 @@
 - `doc/templates.md` — template ref-namespace convention, starter scaffold files, README front-matter schema, archive/reopen workflow
 - `doc/edge-cases.md` — edge-case table, doubles as the implementation acceptance checklist
 - `doc/external-repos.md` — recommended pattern for an issue worktree to reach a separate "code repo" (Claude Code `additionalDirectories` permission, not git submodules/nesting)
+- `.claude/skills/pmt/SKILL.md` — the user-facing Claude Code skill teaching an agent how to *use* `pmt` (commands, workflows, gotchas); distinct from the `doc/` files above, which document how `pmt` is *built*
 
 ## User Preferences
 - Ask first when something important is unclear or uncertain
