@@ -9,6 +9,7 @@ set -euo pipefail
 
 PRIVATE_PATHS=(task_plan.md progress.md findings.md)
 REPO_ROOT="$(git rev-parse --show-toplevel)"
+GITHUB_URL="$(git -C "$REPO_ROOT" remote get-url github)"
 WORKDIR="$(mktemp -d)"
 trap 'rm -rf "$WORKDIR"' EXIT
 
@@ -19,6 +20,6 @@ FILTER_BRANCH_SQUELCH_WARNING=1 git filter-branch --force --index-filter \
   "git rm --cached --ignore-unmatch ${PRIVATE_PATHS[*]}" \
   --prune-empty --tag-name-filter cat -- --all
 
-git push --force github master
+git push --force "$GITHUB_URL" master
 
 echo "Published clean history to the github remote."
