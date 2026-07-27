@@ -49,7 +49,8 @@ go install github.com/JamesTryand/pmtooling/cmd/pmt@latest
 1. `pmt new <type>/<title>` (or `pmt new <type>` for an auto-generated title).
 2. `cd` into the printed worktree path.
 3. **Read that worktree's own `CLAUDE.md` and `README.md` before doing anything else.** The template author may have left type-specific instructions there (how to reproduce a bug, what "done" means, links to further context), and the README's front matter carries the issue's own metadata (`type`, `title`, `branch`, `status`, `created`).
-4. Do the work, committing as you go, inside that worktree.
+4. If the work is driven by an external ticket (an Azure DevOps work item, a GitHub issue/PR, or just a paragraph someone gave you) rather than a clear spec, don't start coding from a vague description — paste the raw ticket content and ask to run the `better-init` skill first. It reuses that content as the project intro instead of re-asking for it, and drafts a scoped plan for the issue (confirmed with the user before anything's written). See the project's own `README.md` "Getting started" section for a worked example prompt.
+5. Do the work, committing as you go, inside that worktree.
 
 **Checking on existing work**
 - `pmt list --json` if you need to reason about several issues programmatically; plain `pmt list` for a quick human-readable check.

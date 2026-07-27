@@ -2,6 +2,14 @@
 
 Source for `pmt` — a CLI tool that manages project issues (bugs, features, etc.) as git branches and git worktrees in a separate target repository.
 
+## What pmt is for
+
+Tracking work usually means juggling two things that don't naturally stay in sync: a ticket, issue, or doc describing *what* needs doing, and a codebase where you actually *do* it. `pmt` closes that gap by making the issue itself a first-class part of the repo, rather than an external record you have to keep cross-referencing.
+
+Concretely: every issue is a real git branch, checked out into its own isolated git worktree, so you can work on several issues side by side without stashing or switching branches in a single checkout. And because each issue is scaffolded from a **template** branch, its starting instructions, permissions, and integrations travel with it automatically the moment it's created — nobody has to remember to set them up by hand each time.
+
+It's built with Claude Code specifically in mind: a template can carry a `CLAUDE.md`, `.claude/settings.json` permissions, MCP server configs, and project-scoped skills, all tailored to that kind of issue. So `pmt new` doesn't just start a branch — it hands off a fully briefed working environment for Claude to pick up immediately.
+
 ## Mental model
 
 - **Target repo**: any git repository (e.g. a client's project) that `pmt` manages issues in. This repo (`pmtooling`) is only pmt's own source — pmt never operates on it as a target.
@@ -21,6 +29,88 @@ go install github.com/JamesTryand/pmtooling/cmd/pmt@latest
 ```
 
 `pmt` v1 is implemented: `new`, `template new`, `template list`, and `list` all work end-to-end. See `doc/edge-cases.md` for what's explicitly out of scope for v1 (issue cleanup, remote/PR integration, config-editing subcommands).
+
+## Getting started
+
+A worked walkthrough of the full lifecycle, from a freshly installed `pmt` to closing out a finished issue. Assumes a target repo already exists — here called `widgetco`.
+
+### 1. Point `pmt` at your repo
+
+Either run `pmt` from inside the repo, or register it once with a nickname so you can reference it from anywhere:
+
+```
+pmt repo add widgetco /path/to/widgetco
+pmt repo set-default widgetco
+```
+
+(`--repo widgetco` also works per-command without setting a default. See `doc/commands.md` for the full resolution order, including the `PMT_DEFAULT_REPO` env var.)
+
+### 2. Set up a template
+
+Every issue is scaffolded from a template, so create one per issue *kind* you plan to use. A blank one:
+
+```
+pmt template new bug
+git worktree add ../widgetco.worktrees/pmt/template/bug pmt/template/bug
+cd ../widgetco.worktrees/pmt/template/bug
+```
+
+Now shape it for the kind of work a "bug" issue actually involves. For example, `CLAUDE.md`:
+
+```markdown
+# Working a bug in widgetco
+
+1. Reproduce the bug first — write a failing test that captures it.
+2. Make the minimal change that makes the test pass.
+3. Run `npm test` and confirm nothing else broke.
+4. Update CHANGELOG.md if the fix is user-facing.
+```
+
+Commit it like any other branch:
+
+```
+git add -A && git commit -m "Bug template: reproduce -> test -> fix -> verify"
+git worktree remove ../widgetco.worktrees/pmt/template/bug
+```
+
+See [building-templates.md](.claude/skills/pmt/building-templates.md) for guidance on going further — scoping `.claude/settings.json` permissions, adding MCP servers, or shipping project-scoped skills for that issue kind.
+
+### 3. Start a new issue
+
+```
+pmt new bug/dboverflow
+# -> bug/dboverflow created from pmt/template/bug
+# -> checked out at ../widgetco.worktrees/bug/dboverflow
+cd ../widgetco.worktrees/bug/dboverflow
+```
+
+The new worktree already has the template's `CLAUDE.md`, permissions, and any other files committed to the template — nothing further to set up.
+
+### 4. Turn a description or external ticket into a clear plan
+
+Real work rarely starts from nothing — usually there's an Azure DevOps work item, a GitHub issue, or a paragraph someone typed in Slack. Rather than diving straight into code from a vague description, hand that raw material to Claude inside the issue's worktree and ask it to run the `better-init` skill:
+
+```
+Here's Azure DevOps work item #4821:
+
+<paste the work item description>
+
+Use /better-init to turn this into a clear plan for this issue before we start.
+```
+
+(An `gh issue view 123` or `gh pr view 456` output works just as well as the pasted source.) `/better-init` treats the issue's worktree as the target directory, reuses what you already gave it as the project intro instead of asking you to repeat it, asks only for whatever's genuinely missing, and drafts a concise plan — showing it to you for confirmation before writing anything. The result is a scoped, durable starting point for the issue, built the same way this repo's own `CLAUDE.md` was.
+
+For issues substantial enough to need an ongoing task list across multiple sessions (not just a short plan), see [workflow-patterns.md](.claude/skills/pmt/workflow-patterns.md) for initializing one and, if the work is iterative, structuring a loop around it.
+
+### 5. Do the work, then close it out
+
+Commit as you go, same as any other branch. When it's done:
+
+```
+pmt close bug/dboverflow
+```
+
+This archives the issue (full history preserved in `refs/heads/pmt/archive`) and removes the branch and worktree. If it turns out more work is needed later, `pmt reopen bug/dboverflow` brings it back exactly as it was.
 
 ## Claude Code skill
 
