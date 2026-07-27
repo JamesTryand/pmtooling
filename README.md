@@ -28,6 +28,8 @@ pmt new bug/dboverflow
 go install github.com/JamesTryand/pmtooling/cmd/pmt@latest
 ```
 
+Run `pmt version` any time to check what's installed and pick up a newer release the same way — `go install .../pmt@latest` always re-fetches and rebuilds. Pin a specific release instead of always tracking the newest with e.g. `go install github.com/JamesTryand/pmtooling/cmd/pmt@v0.1.0`.
+
 `pmt` v1 is implemented: `new`, `template new`, `template list`, and `list` all work end-to-end. See `doc/edge-cases.md` for what's explicitly out of scope for v1 (issue cleanup, remote/PR integration, config-editing subcommands).
 
 ## Getting started
