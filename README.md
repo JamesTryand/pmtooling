@@ -17,7 +17,7 @@ pmt new bug/dboverflow
 ## Install
 
 ```
-go install github.com/<you>/pmtooling/cmd/pmt@latest
+go install github.com/JamesTryand/pmtooling/cmd/pmt@latest
 ```
 
 `pmt` v1 is implemented: `new`, `template new`, `template list`, and `list` all work end-to-end. See `doc/edge-cases.md` for what's explicitly out of scope for v1 (issue cleanup, remote/PR integration, config-editing subcommands).
