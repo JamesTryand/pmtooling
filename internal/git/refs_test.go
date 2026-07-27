@@ -75,6 +75,45 @@ func TestRefExists(t *testing.T) {
 	}
 }
 
+func TestCurrentBranch(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "f.txt", "hello")
+	if _, err := Run(dir, "branch", "bug/one"); err != nil {
+		t.Fatalf("git branch: %v", err)
+	}
+	if _, err := Run(dir, "checkout", "bug/one"); err != nil {
+		t.Fatalf("git checkout: %v", err)
+	}
+
+	branch, onBranch, err := CurrentBranch(dir)
+	if err != nil {
+		t.Fatalf("CurrentBranch: %v", err)
+	}
+	if !onBranch || branch != "bug/one" {
+		t.Errorf("CurrentBranch = (%q, %v), want (\"bug/one\", true)", branch, onBranch)
+	}
+}
+
+func TestCurrentBranchDetachedHEAD(t *testing.T) {
+	dir := initRepo(t)
+	commitFile(t, dir, "f.txt", "hello")
+	head, err := Run(dir, "rev-parse", "HEAD")
+	if err != nil {
+		t.Fatalf("git rev-parse HEAD: %v", err)
+	}
+	if _, err := Run(dir, "checkout", head); err != nil {
+		t.Fatalf("git checkout <sha> (detach HEAD): %v", err)
+	}
+
+	branch, onBranch, err := CurrentBranch(dir)
+	if err != nil {
+		t.Fatalf("CurrentBranch: %v", err)
+	}
+	if onBranch || branch != "" {
+		t.Errorf("CurrentBranch on detached HEAD = (%q, %v), want (\"\", false)", branch, onBranch)
+	}
+}
+
 func TestForEachRef(t *testing.T) {
 	dir := initRepo(t)
 	commitFile(t, dir, "f.txt", "hello")

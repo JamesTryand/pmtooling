@@ -27,6 +27,21 @@ func RefExists(dir, refName string) (bool, error) {
 	return code == 0, nil
 }
 
+// CurrentBranch reports the branch checked out at dir via `git symbolic-ref
+// --short -q HEAD`. onBranch is false (with an empty branch) when HEAD is
+// detached — symbolic-ref exits 1 silently in that case, which is a real
+// answer, not an error, exactly like IsAncestor's exit-code handling below.
+func CurrentBranch(dir string) (branch string, onBranch bool, err error) {
+	out, code, err := RunRaw(dir, "symbolic-ref", "--short", "-q", "HEAD")
+	if err != nil {
+		return "", false, err
+	}
+	if code != 0 {
+		return "", false, nil
+	}
+	return out, true, nil
+}
+
 // ForEachRef runs `git for-each-ref --format=format pattern` and returns
 // one result string per matching ref, in git's own sort order.
 func ForEachRef(dir, pattern, format string) ([]string, error) {

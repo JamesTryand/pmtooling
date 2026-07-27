@@ -78,6 +78,21 @@ See doc/templates.md#sharing-templates-between-repos for the full design. `<sour
 - If local is already ahead of (or equal to) incoming — nothing to do, deletes the scratch ref, reports "already up to date."
 - If the two have diverged — **no automatic merge is attempted**. The scratch ref is left in place, and pmt prints instructions to merge manually with plain git (e.g. `git worktree add <path> pmt/template/<name>` then `git -C <path> merge pmt/template-incoming/<name>`). Errors with `ErrNotFound` if the template was never imported locally.
 
+### `pmt get [<type>/<title>]` (Phase 9)
+
+```
+pmt get [<type>/<title>]  [--repo <path-or-nickname>]
+```
+
+Named "get" rather than "goto" because it never changes any directory itself — a subprocess cannot change its parent shell's working directory. It's deliberately a path-resolver: on success it prints exactly the issue's worktree path to stdout and nothing else, meant to be composed as `dir=$(pmt get <type>/<title>) && cd "$dir"` (the `&&` matters — it's what keeps a failed lookup from `cd`-ing to an unintended location on an empty/garbage string). Every other outcome writes a human-readable explanation to stderr via the normal cobra/main.go error path and exits non-zero, with stdout left empty:
+
+1. Resolve repo. If `<type>/<title>` is omitted, read the branch checked out at the *actual invocation cwd* (`git symbolic-ref --short -q HEAD`, not the resolved repo root — these differ when cwd is already inside a linked worktree) and use it as the target if it's shaped like `<type>/<title>`; otherwise error with usage.
+2. Look up the target among live issues (`issue.ListIssues`, scoped to its type for efficiency).
+   - `WorktreeOK` → print the worktree path, done.
+   - Any other worktree state (`prunable`/`orphaned`/`missing`) → error naming the state, points to `pmt list`.
+3. Not live → look up among archived issues (`archive.ListArchived`, scoped to its type). Found → error explaining it's archived, with the exact `pmt reopen <type>/<title>` command.
+4. Found nowhere → error, points to both `pmt list` and `pmt list --archived`.
+
 ## `pmt new <type>[/<title>]`
 
 1. Split the argument on the first `/` into `type` and optional `title`. Resolve the target repo (`architecture.md`).

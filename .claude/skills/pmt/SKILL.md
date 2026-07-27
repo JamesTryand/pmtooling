@@ -35,6 +35,7 @@ go install github.com/JamesTryand/pmtooling/cmd/pmt@latest
 | `pmt list --archived [--type <t>] [--json]` | List closed issues instead of live ones. |
 | `pmt close <type>/<title>` | Archive and remove a finished issue. **Refuses if the worktree has uncommitted changes.** |
 | `pmt reopen <type>/<title>` | Restore a previously closed issue — full history intact — as a live branch + worktree again. |
+| `pmt get [<type>/<title>]` | Print an issue's worktree path (nothing else on success) so you can `cd` there. Omit the argument to resolve the *current* branch instead. Not found/archived/no-worktree cases explain why on stderr and exit non-zero, printing nothing on stdout. |
 | `pmt template new <name>` | Scaffold a brand-new template branch. |
 | `pmt template new <name> --from <source>` | Import a template from another repo instead of scaffolding a blank one. |
 | `pmt template list` | List available template types in the target repo. |
@@ -59,6 +60,11 @@ go install github.com/JamesTryand/pmtooling/cmd/pmt@latest
 **Finishing up**
 - Commit everything in the issue's worktree, *then* `pmt close <type>/<title>`. If it's refused, there are uncommitted changes — check `git status` in that worktree first.
 - If something was closed too early or needs more work, `pmt reopen <type>/<title>` brings it back exactly as it was.
+
+**Jumping back into an existing issue**
+- `pmt get` never changes your directory itself — a subprocess can't change its parent shell's cwd, and `pmt` is no exception (that's why it's called "get," not "goto"). It only ever prints a path (or, on failure, nothing to stdout and an explanation on stderr). Use it as `dir=$(pmt get <type>/<title>) && cd "$dir"` — the `&&` matters, since it's what stops a failed lookup from `cd`-ing anywhere on empty output.
+- Bare `pmt get` (no argument) resolves the branch currently checked out at cwd instead of taking one as an argument — handy for "what issue am I even in right now," or for normalizing back to a worktree's root from a subdirectory of it.
+- If the issue isn't live, the error tells you why: archived (with the exact `pmt reopen` command to fix it) or not found anywhere (with both `pmt list` and `pmt list --archived`) — read it before trying again rather than guessing.
 
 **Setting up templates**
 - `pmt template new <name>` gives a blank starting point; check it out (`git worktree add <path> pmt/template/<name>`), edit its files, commit.

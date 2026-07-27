@@ -112,6 +112,16 @@ pmt close bug/dboverflow
 
 This archives the issue (full history preserved in `refs/heads/pmt/archive`) and removes the branch and worktree. If it turns out more work is needed later, `pmt reopen bug/dboverflow` brings it back exactly as it was.
 
+### Coming back to an issue later
+
+`pmt get <type>/<title>` finds an issue's worktree for you — but since a subprocess can't change its parent shell's directory, it only *prints* the path rather than cd-ing itself (hence "get," not "goto"):
+
+```
+dir=$(pmt get bug/dboverflow) && cd "$dir"
+```
+
+If the issue's closed, it tells you and gives the exact `pmt reopen` command instead of just failing quietly. Run `pmt get` with no argument to resolve whatever branch is currently checked out at your cwd — useful for jumping back to a worktree's root from a subdirectory of it.
+
 ## Claude Code skill
 
 [.claude/skills/pmt/SKILL.md](.claude/skills/pmt/SKILL.md) teaches Claude how to *use* `pmt` day-to-day (commands, workflows, gotchas) — separate from the `doc/` files below, which document how `pmt` itself is built. Copy the `pmt` folder into `~/.claude/skills/pmt` (available everywhere) or a target repo's `.claude/skills/pmt` (that project only) to use it outside this repo.
