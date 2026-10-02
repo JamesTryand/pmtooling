@@ -18,6 +18,7 @@ const (
 	VerbDirty    Verb = "dirty"    // worktree has uncommitted changes; untouched
 	VerbPrunable Verb = "prunable" // worktree registered but its directory is gone
 	VerbOrphaned Verb = "orphaned" // a directory is in the way but git does not know it
+	VerbSkipped  Verb = "skipped"  // deliberately not handled (e.g. --skip-update); never shown
 )
 
 // Pull brings one issue branch from the remote into this machine: it
@@ -75,6 +76,26 @@ func Pull(root, worktreesDir, remote, branch string, dryRun bool) (Result, error
 		return Result{}, missingOnRemote(root, remote, branch, localSHA != "", dryRun)
 	}
 
+	rc := reconciler{root: root, worktreesDir: worktreesDir, remote: remote, dryRun: dryRun}
+	return rc.issue(branch, localSHA, remoteSHA)
+}
+
+// reconciler brings one branch in line with its remote counterpart, with the
+// same rules for pull (one issue) and sync (all of them). Callers have
+// already fetched and read both tips.
+type reconciler struct {
+	root, worktreesDir, remote string
+	dryRun                     bool
+	skipUpdate                 bool // leave existing worktrees alone (only create missing ones)
+}
+
+// issue reconciles an issue branch: create the branch/worktree if missing,
+// fast-forward a clean worktree, otherwise report. localSHA is empty when
+// there is no local branch.
+func (rc reconciler) issue(branch, localSHA, remoteSHA string) (Result, error) {
+	root, worktreesDir, remote, dryRun := rc.root, rc.worktreesDir, rc.remote, rc.dryRun
+	typeName, title := issue.Split(branch)
+
 	rel, err := git.ClassifyTips(root, localSHA, remoteSHA)
 	if err != nil {
 		return Result{}, err
@@ -109,6 +130,11 @@ func Pull(root, worktreesDir, remote, branch string, dryRun bool) (Result, error
 	// recreated safely from here.
 	if wt != nil && wt.Prunable {
 		res.Verb, res.Detail = VerbPrunable, wt.Path+"  (run git worktree prune, then pull again)"
+		return res, nil
+	}
+
+	if wt != nil && rc.skipUpdate {
+		res.Verb = VerbSkipped
 		return res, nil
 	}
 

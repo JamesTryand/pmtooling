@@ -108,9 +108,14 @@ func replaceEntry(dir, prevTip string, prevExists bool, prefixPath, name, newEnt
 // instead of the stale first-ever archive. Returns ErrNotArchived if the
 // path was never archived, or the archive branch doesn't exist.
 func findArchiveCommit(dir, typeName, title string) (string, error) {
+	return findArchiveCommitAt(dir, Ref, typeName, title)
+}
+
+// findArchiveCommitAt is findArchiveCommit walking the archive at ref.
+func findArchiveCommitAt(dir, ref, typeName, title string) (string, error) {
 	path := typeName + "/" + title
 
-	current, ok, err := git.RevParseQuiet(dir, Ref)
+	current, ok, err := git.RevParseQuiet(dir, ref)
 	if err != nil {
 		return "", err
 	}

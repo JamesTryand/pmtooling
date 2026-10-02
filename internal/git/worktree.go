@@ -21,14 +21,34 @@ import (
 // worktrees_dir), it's resolved relative to mainRepoRoot instead of the
 // default sibling convention.
 func ComputeWorktreePath(mainRepoRoot, worktreesDirOverride, typeName, title string) string {
-	var worktreesRoot string
+	return filepath.Join(WorktreesRoot(mainRepoRoot, worktreesDirOverride), typeName, title)
+}
+
+// WorktreesRoot is the directory that holds every issue worktree, per the
+// convention documented on ComputeWorktreePath.
+func WorktreesRoot(mainRepoRoot, worktreesDirOverride string) string {
 	if worktreesDirOverride != "" {
-		worktreesRoot = filepath.Clean(filepath.Join(mainRepoRoot, worktreesDirOverride))
-	} else {
-		base := strings.TrimSuffix(filepath.Base(mainRepoRoot), ".git")
-		worktreesRoot = filepath.Join(filepath.Dir(mainRepoRoot), base+".worktrees")
+		return filepath.Clean(filepath.Join(mainRepoRoot, worktreesDirOverride))
 	}
-	return filepath.Join(worktreesRoot, typeName, title)
+	base := strings.TrimSuffix(filepath.Base(mainRepoRoot), ".git")
+	return filepath.Join(filepath.Dir(mainRepoRoot), base+".worktrees")
+}
+
+// WorktreeIgnoredFiles lists files in the worktree that git ignores (e.g.
+// local settings). They are invisible to `git status`, but `git worktree
+// remove` deletes them, so removal code checks this first.
+func WorktreeIgnoredFiles(worktreePath string) ([]string, error) {
+	out, err := Run(worktreePath, "status", "--porcelain", "--ignored")
+	if err != nil {
+		return nil, err
+	}
+	var ignored []string
+	for _, line := range Lines(out) {
+		if strings.HasPrefix(line, "!! ") {
+			ignored = append(ignored, strings.TrimPrefix(line, "!! "))
+		}
+	}
+	return ignored, nil
 }
 
 // WorktreeAdd creates a new linked worktree at path, checking out branch

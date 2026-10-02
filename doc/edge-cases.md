@@ -103,6 +103,28 @@ Explicit behavior for every edge case identified during design (v1 and the Phase
 | Branch moves between examining and deleting | Delete is guarded by the examined SHA, so it fails rather than deleting new work |
 | No archive branch, or nothing archived | Nothing to do |
 | `[gone]` upstream with no archive entry | Ignored: pmt's archive is the only source of "closed" |
+| Branch is in the archive but descends from the archived tip (closed, then reopened) | An open issue with a stale archive entry: never a candidate, not even without a worktree |
+
+## Distributed working edge cases (`pmt sync`)
+
+| Edge case | Resolution |
+|---|---|
+| Local issue, no remote copy, not archived (never pushed) | `unpublished`, exit 2, kept. The 2026-09-25 incident: the script removed two such open issues; sync never does |
+| Local issue, no remote copy, archived, tip ⊆ archive, clean worktree | Worktree and branch removed (`removed`); tip SHA and restore hint printed |
+| Same, but the worktree has uncommitted changes, git-ignored files, or its directory is gone | `in-use` with the reason; nothing removed |
+| Same, but the tip holds files the archive lacks | `differs` with the paths; nothing removed |
+| Archived here but the remote still has the branch | `closed`, exit 2; never resurrected; prints the `git push <remote> --delete <issue>` to run |
+| Closed then reopened elsewhere (remote tip descends from the archived tip) | Treated as open: created like any issue |
+| Remote branch with no `<type>/<title>` shape, or a type with no template | `ignored`; no worktree is made (the script made one for every remote branch) |
+| Dirty worktree and the remote moved | `dirty`, exit 2, untouched |
+| Local and remote both moved | `diverged`, exit 2; there is no reset flag in this round |
+| Worktree registered but its directory is gone | `prunable`; `git worktree prune` is not run for you |
+| Detached HEAD worktree / directory with `.git` that git does not know | `detached` / `orphaned`, exit 2, untouched |
+| Main checkout on the remote's default branch | Fast-forwarded when clean, `dirty` otherwise; a bare repo has no main checkout |
+| `pmt/archive` checked out in a worktree | Fast-forwarded in that worktree (`merge --ff-only`) when clean, `dirty` otherwise |
+| `--dry-run` | Changes no branch, worktree, file or remote; still fetches. A closed-elsewhere issue is judged against the remote's archive when the real run would have fast-forwarded the local one, so the preview matches |
+| No fetch refspec for the remote | Error says so and gives the `git config --add remote.<name>.fetch` fix; no URL printed |
+| Fetch fails (network, auth) | Error with URLs, hosts and the configured location scrubbed |
 
 ## Deliberately out of scope
 

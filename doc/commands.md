@@ -143,6 +143,32 @@ Same verbs, URL scrubbing and exit codes as `push`, plus:
 
 An issue that isn't on the remote is an error naming it, with near matches ("did you mean"); one that exists only locally points to `pmt push`. `pmt/*` branches are refused (`pmt sync` handles the archive and templates). With `--dry-run` nothing is fetched or written: the remote is read with `ls-remote`, and a remote tip this repo has never fetched is reported as `moved` rather than guessed.
 
+### `pmt sync [--dry-run] [--skip-update] [--remote <name>]` (distributed working, M6)
+
+The whole-farm reconcile, a native port of the notebook's `Sync-Worktrees.ps1` that uses pmt's own issue and archive semantics. It fetches (pruning stale remote-tracking refs), then, in order:
+
+1. fast-forwards the main checkout's default branch (the remote's `HEAD`) when that checkout is clean;
+2. fast-forwards or creates `pmt/archive` and `pmt/template/*` (in whichever worktree has them checked out, when clean);
+3. for each remote issue branch (`<type>/<title>` whose template exists locally or on the remote): does what `pmt pull` does (creates the worktree, fast-forwards a clean one, reports dirty / diverged / ahead / prunable / orphaned);
+4. for each local issue branch with **no remote copy**: removes it (and its clean worktree) only if the issue is archived and the tip holds nothing the archive lacks, exactly `pmt prune`'s test; otherwise reports it;
+5. reports detached worktrees and directories under the worktrees root that have a `.git` but are not registered worktrees.
+
+It never pushes (that is `pmt push`), never merges, resets or force-removes, and never runs `git worktree prune` for you (a vanished worktree directory is reported as `prunable`). `--skip-update` only creates missing worktrees and leaves existing ones alone. `--dry-run` changes no branch, worktree, file or remote, but still fetches (as the script's `-WhatIf` did), so the preview matches the real remote; the real run takes the same decisions.
+
+Verbs are those of `push`, `pull` and `prune`, plus:
+
+| Verb | Meaning | Exit |
+|---|---|---|
+| `removed` | closed issue: clean worktree and branch removed; detail has the tip SHA and how to restore | 0 |
+| `unpublished` | local issue with no remote copy and not archived: an open issue nobody pushed; kept (`pmt push <issue>`) | 2 |
+| `closed` | archived here but the remote still has the branch; not recreated (detail: the `git push <remote> --delete <issue>` to run) | 2 |
+| `detached` | a worktree on a detached HEAD; untouched | 2 |
+| `ignored` | a remote branch that is not a pmt issue (no `<type>/<title>` shape, or no template for the type); no worktree is made | 0 |
+
+A closed issue is only removed when its worktree is also safe to delete: no uncommitted changes, and no git-ignored files (which `git worktree remove` would delete silently). Otherwise it is reported `in-use` with the reason. A branch built on top of the archived tip is treated as a reopened (open) issue and is never pruned or recreated as closed.
+
+The result is exit `0` when everything is in step, `2` when anything needs attention, `1` on error. With no fetch refspec configured for the remote the error says so and prints the `git config` fix; remote URLs are never printed.
+
 ### `pmt prune [--dry-run]` (distributed working, M5)
 
 When an issue is closed with `pmt close` on one machine, its branch disappears from the remote but every other machine keeps a local copy. `pmt prune` deletes such a leftover only when all three hold:

@@ -32,7 +32,8 @@ const (
 // NeedsAttention reports whether a verb should make the command exit 2.
 func (v Verb) NeedsAttention() bool {
 	switch v {
-	case VerbBehind, VerbDiverged, VerbMoved, VerbFailed, VerbDirty, VerbPrunable, VerbOrphaned, VerbInUse, VerbDiffers:
+	case VerbBehind, VerbDiverged, VerbMoved, VerbFailed, VerbDirty, VerbPrunable, VerbOrphaned, VerbInUse, VerbDiffers,
+		VerbUnpublished, VerbClosed, VerbDetached:
 		return true
 	}
 	return false

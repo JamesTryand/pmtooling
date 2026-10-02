@@ -23,7 +23,14 @@ type ArchivedIssue struct {
 // unparseable README.md is non-fatal, matching `pmt list`'s own
 // tolerance for corrupted metadata.
 func ListArchived(dir, typeFilter string) ([]ArchivedIssue, error) {
-	tip, ok, err := git.RevParseQuiet(dir, Ref)
+	return ListArchivedAt(dir, Ref, typeFilter)
+}
+
+// ListArchivedAt is ListArchived reading the archive from ref instead of
+// refs/heads/pmt/archive (e.g. the remote-tracking copy, to preview what a
+// sync would see once the local archive is brought up to date).
+func ListArchivedAt(dir, ref, typeFilter string) ([]ArchivedIssue, error) {
+	tip, ok, err := git.RevParseQuiet(dir, ref)
 	if err != nil {
 		return nil, err
 	}

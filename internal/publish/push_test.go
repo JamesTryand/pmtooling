@@ -59,6 +59,16 @@ func newFixture(t *testing.T) fixture {
 	return fixture{root: root, bare: bare}
 }
 
+// defaultBranch is the branch the fixture's target repo has checked out.
+func (f fixture) defaultBranch(t *testing.T) string {
+	t.Helper()
+	b, onBranch, err := git.CurrentBranch(f.root)
+	if err != nil || !onBranch {
+		t.Fatalf("CurrentBranch: %q, %v, %v", b, onBranch, err)
+	}
+	return b
+}
+
 func (f fixture) newIssue(t *testing.T, title string) string {
 	t.Helper()
 	res, err := issue.Create(f.root, defaultCfg(), "bug", title)

@@ -10,6 +10,8 @@ type Worktree struct {
 	Path     string
 	Branch   string // short branch name (refs/heads/ stripped); empty if detached
 	Prunable bool   // the worktree's directory is missing on disk
+	Detached bool   // HEAD is detached (no branch)
+	Bare     bool   // the entry is the bare repository itself, not a checkout
 }
 
 // ListWorktrees parses `git worktree list --porcelain` for the repo at dir.
@@ -50,6 +52,10 @@ func parseWorktreeList(out string) []Worktree {
 			cur.Branch = strings.TrimPrefix(strings.TrimPrefix(line, "branch "), "refs/heads/")
 		case strings.HasPrefix(line, "prunable"):
 			cur.Prunable = true
+		case line == "detached":
+			cur.Detached = true
+		case line == "bare":
+			cur.Bare = true
 		}
 	}
 	flush()

@@ -14,6 +14,7 @@ type PruneOutcome string
 
 const (
 	PruneDeleted PruneOutcome = "pruned"  // branch deleted (or would be, in a dry run)
+	PruneRemoved PruneOutcome = "removed" // clean worktree removed, then branch deleted
 	PruneInUse   PruneOutcome = "in-use"  // a worktree has the branch checked out; kept
 	PruneDiffers PruneOutcome = "differs" // the tip holds something the archive lacks; kept
 )
@@ -27,11 +28,28 @@ type PruneResult struct {
 	Diffs   []string // paths in the tip that the archive lacks or holds differently
 }
 
+// PruneOptions tunes PruneWith.
+type PruneOptions struct {
+	DryRun bool
+	// RemoveCleanWorktrees lets a branch that is checked out in a clean
+	// worktree be pruned too: the worktree is removed first, then the
+	// branch. Only after the same safety checks have passed; a worktree with
+	// uncommitted or ignored files, or a missing directory, is still kept.
+	RemoveCleanWorktrees bool
+	// Filter, when set, restricts candidates to branches it returns true for.
+	Filter func(branch string) bool
+	// ArchiveRef is the ref holding the archive to judge against; empty
+	// means the local refs/heads/pmt/archive. A dry-run sync points this at
+	// the remote-tracking copy to preview what the real run will see.
+	ArchiveRef string
+}
+
 // Prune finds local branches of issues that have been closed (they appear in
 // the archive) and deletes each one only when ALL of these hold:
 //
 //  1. the issue is in the archive (the archive is pmt's record of "closed",
-//     never the remote's `[gone]` state);
+//     never the remote's `[gone]` state), and the branch has not been
+//     reopened since (a reopened branch contains the archived tip);
 //  2. no worktree has the branch checked out;
 //  3. the branch tip holds nothing the archive lacks: every file in the tip's
 //     tree exists, byte-identical, in the archived copy. The only tolerated
@@ -42,7 +60,16 @@ type PruneResult struct {
 // guarded by the tip it examined, so a branch that moved in the meantime is
 // not deleted. Nothing is deleted when dryRun is set.
 func Prune(dir string, dryRun bool) ([]PruneResult, error) {
-	archived, err := ListArchived(dir, "")
+	return PruneWith(dir, PruneOptions{DryRun: dryRun})
+}
+
+// PruneWith is Prune with options; see PruneOptions.
+func PruneWith(dir string, opts PruneOptions) ([]PruneResult, error) {
+	archiveRef := opts.ArchiveRef
+	if archiveRef == "" {
+		archiveRef = Ref
+	}
+	archived, err := ListArchivedAt(dir, archiveRef, "")
 	if err != nil {
 		return nil, err
 	}
@@ -62,10 +89,10 @@ func Prune(dir string, dryRun bool) ([]PruneResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	inUse := map[string]string{}
+	inUse := map[string]git.Worktree{}
 	for _, w := range worktrees {
 		if w.Branch != "" {
-			inUse[w.Branch] = w.Path
+			inUse[w.Branch] = w
 		}
 	}
 
@@ -74,19 +101,31 @@ func Prune(dir string, dryRun bool) ([]PruneResult, error) {
 		if !archivedSet[branch] {
 			continue // an open issue (or not an issue at all): never a prune candidate
 		}
+		if opts.Filter != nil && !opts.Filter(branch) {
+			continue
+		}
 		tip, err := git.RevParse(dir, "refs/heads/"+branch)
 		if err != nil {
 			return nil, err
 		}
-		res := PruneResult{Branch: branch, Tip: tip}
 
-		if path, used := inUse[branch]; used {
-			res.Outcome, res.Detail = PruneInUse, path
+		reopened, err := ReopenedSinceArchiveAt(dir, archiveRef, branch, tip)
+		if err != nil {
+			return nil, err
+		}
+		if reopened {
+			continue // it was closed and then reopened: an open issue with a stale archive entry
+		}
+
+		res := PruneResult{Branch: branch, Tip: tip}
+		wt, used := inUse[branch]
+		if used && !opts.RemoveCleanWorktrees {
+			res.Outcome, res.Detail = PruneInUse, wt.Path
 			results = append(results, res)
 			continue
 		}
 
-		diffs, err := diffAgainstArchive(dir, tip, branch)
+		diffs, err := diffAgainstArchive(dir, archiveRef, tip, branch)
 		if err != nil {
 			return nil, err
 		}
@@ -97,10 +136,31 @@ func Prune(dir string, dryRun bool) ([]PruneResult, error) {
 			continue
 		}
 
+		if used {
+			blocker, err := worktreeBlocker(wt)
+			if err != nil {
+				return nil, err
+			}
+			if blocker != "" {
+				res.Outcome, res.Detail = PruneInUse, blocker
+				results = append(results, res)
+				continue
+			}
+		}
+
 		res.Outcome = PruneDeleted
 		res.Detail = fmt.Sprintf("tip %s (restore: git branch %s %s)", git.ShortSHA(tip), branch, tip)
-		if !dryRun {
-			// the old-value argument makes this a no-op failure if the branch moved
+		if used {
+			res.Outcome = PruneRemoved
+			res.Detail = fmt.Sprintf("worktree %s and branch; tip %s (restore: git branch %s %s, then git worktree add)", wt.Path, git.ShortSHA(tip), branch, tip)
+		}
+		if !opts.DryRun {
+			if used {
+				if _, err := git.Run(dir, "worktree", "remove", wt.Path); err != nil {
+					return nil, fmt.Errorf("removing worktree of %s: %w", branch, err)
+				}
+			}
+			// the old-value argument makes this a failure, not a deletion, if the branch moved
 			if _, err := git.Run(dir, "update-ref", "-d", "refs/heads/"+branch, tip); err != nil {
 				return nil, fmt.Errorf("deleting %s: %w", branch, err)
 			}
@@ -112,11 +172,67 @@ func Prune(dir string, dryRun bool) ([]PruneResult, error) {
 	return results, nil
 }
 
+// worktreeBlocker returns why a worktree must not be removed ("" when it is
+// safe): a missing directory, uncommitted changes, or ignored files (which
+// `git worktree remove` would delete without a word).
+func worktreeBlocker(wt git.Worktree) (string, error) {
+	if wt.Prunable || !dirExists(wt.Path) {
+		return "worktree directory is missing: " + wt.Path + " (run git worktree prune)", nil
+	}
+	dirty, err := git.IsWorktreeDirty(wt.Path)
+	if err != nil {
+		return "", err
+	}
+	if dirty {
+		return "uncommitted changes in " + wt.Path, nil
+	}
+	ignored, err := git.WorktreeIgnoredFiles(wt.Path)
+	if err != nil {
+		return "", err
+	}
+	if len(ignored) > 0 {
+		return fmt.Sprintf("ignored files in %s would be lost (%s)", wt.Path, summarizeDiffs(ignored)), nil
+	}
+	return "", nil
+}
+
+// ReopenedSinceArchive reports whether tip (a commit of branch, local or
+// remote) descends from the tip that was archived for it, which is exactly
+// what a `pmt reopen` produces (the branch is recreated at the archived tip
+// and a restamp commit added). Such a branch is an open issue whose archive
+// entry is simply stale, never a leftover. A leftover on another machine
+// sits at (or before) the archived tip instead. Returns false if the branch
+// was never archived.
+func ReopenedSinceArchive(dir, branch, tip string) (bool, error) {
+	return ReopenedSinceArchiveAt(dir, Ref, branch, tip)
+}
+
+// ReopenedSinceArchiveAt is ReopenedSinceArchive judged against the archive
+// at ref.
+func ReopenedSinceArchiveAt(dir, ref, branch, tip string) (bool, error) {
+	typeName, title := issue.Split(branch)
+	commit, err := findArchiveCommitAt(dir, ref, typeName, title)
+	if err != nil {
+		if err == ErrNotArchived {
+			return false, nil
+		}
+		return false, err
+	}
+	archivedTip, err := git.Run(dir, "rev-parse", commit+"^1")
+	if err != nil {
+		return false, err
+	}
+	if archivedTip == tip {
+		return false, nil
+	}
+	return git.IsAncestor(dir, archivedTip, tip)
+}
+
 // diffAgainstArchive returns the paths in tip's tree that the archived copy
 // of branch does not hold identically. Files only the archive has are fine
 // (the tip is a subset). README.md is compared ignoring the close stamp.
-func diffAgainstArchive(dir, tip, branch string) ([]string, error) {
-	archivedTree, ok, err := git.TreeEntrySHA(dir, Ref, branch)
+func diffAgainstArchive(dir, archiveRef, tip, branch string) ([]string, error) {
+	archivedTree, ok, err := git.TreeEntrySHA(dir, archiveRef, branch)
 	if err != nil {
 		return nil, err
 	}

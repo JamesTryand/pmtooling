@@ -82,13 +82,13 @@ func TestPruneCmdExitTwoWhenBranchHasUnarchivedWork(t *testing.T) {
 	if _, err := execRoot(t, "new", "bug/one", "--repo", root); err != nil {
 		t.Fatal(err)
 	}
+	preClose, _ := git.Run(root, "rev-parse", "refs/heads/bug/one")
 	if _, err := execRoot(t, "close", "bug/one", "--repo", root); err != nil {
 		t.Fatal(err)
 	}
-	// a branch with a file the archive never saw
-	archiveTip, _ := git.Run(root, "rev-parse", "refs/heads/pmt/archive")
-	stamped, _ := git.Run(root, "rev-parse", archiveTip+"^1")
-	if _, err := git.Run(root, "branch", "bug/one", stamped); err != nil {
+	// the other machine's copy: it branched from the pre-close tip and added
+	// a file the closing machine (and so the archive) never saw
+	if _, err := git.Run(root, "branch", "bug/one", preClose); err != nil {
 		t.Fatal(err)
 	}
 	wt := filepath.Join(t.TempDir(), "w")
