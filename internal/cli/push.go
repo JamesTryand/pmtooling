@@ -92,7 +92,7 @@ attention, 1 on error.`,
 			if err != nil {
 				return err
 			}
-			return reportPush(cmd.OutOrStdout(), results, dryRun)
+			return reportResults(cmd.OutOrStdout(), results, dryRun, "nothing to push")
 		},
 	}
 	cmd.Flags().BoolVar(&all, "all", false, "push every issue branch, the archive and the templates")
@@ -101,7 +101,10 @@ attention, 1 on error.`,
 	return cmd
 }
 
-func reportPush(w io.Writer, results []publish.Result, dryRun bool) error {
+// reportResults prints one line per result and a count summary, and returns
+// an ExitCodeError (exit 2) when any result needs attention. Shared by push,
+// pull and sync so every command speaks the same verbs.
+func reportResults(w io.Writer, results []publish.Result, dryRun bool, empty string) error {
 	counts := map[publish.Verb]int{}
 	attention := false
 	for _, r := range results {
@@ -123,12 +126,12 @@ func reportPush(w io.Writer, results []publish.Result, dryRun bool) error {
 	for _, v := range verbs {
 		parts = append(parts, fmt.Sprintf("%d %s", counts[publish.Verb(v)], v))
 	}
-	summary := "nothing to push"
+	summary := empty
 	if len(parts) > 0 {
 		summary = strings.Join(parts, ", ")
 	}
 	if dryRun {
-		summary += " (dry run: nothing was pushed)"
+		summary += " (dry run: nothing was changed)"
 	}
 	fmt.Fprintln(w, summary)
 

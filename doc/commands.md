@@ -119,6 +119,30 @@ One line per branch, then a summary of counts:
 
 Exit status: `0` everything pushed or up to date; `2` finished but some branches need attention; `1` error. Pushing a new issue's branch promptly is also what stops a later sync from mistaking it for a closed issue.
 
+### `pmt pull <type>/<title> [--dry-run] [--remote <name>]` (distributed working, M4)
+
+Brings one issue from the remote onto this machine. It fetches, then:
+
+- no local branch → create it (tracking the remote) and a worktree at the usual path;
+- local branch but no worktree → fast-forward it if behind, and create the worktree;
+- clean worktree, behind → `git merge --ff-only` in place;
+- anything else is reported and left exactly as it is. Nothing is ever merged, reset or discarded.
+
+Same verbs, URL scrubbing and exit codes as `push`, plus:
+
+| Verb | Meaning | Exit |
+|---|---|---|
+| `created` | worktree (and local branch if needed) created | 0 |
+| `updated` | clean worktree fast-forwarded (`abc1234..def5678`) | 0 |
+| `up-to-date` | already current | 0 |
+| `ahead` | local has unpushed commits; nothing to pull (`pmt push`) | 0 |
+| `dirty` | worktree has uncommitted changes; untouched | 2 |
+| `diverged` | both sides have new commits (`a...b`); untouched | 2 |
+| `prunable` | worktree registered but its directory is gone; run `git worktree prune` | 2 |
+| `orphaned` | a directory is where the worktree should go but git doesn't know it | 2 |
+
+An issue that isn't on the remote is an error naming it, with near matches ("did you mean"); one that exists only locally points to `pmt push`. `pmt/*` branches are refused (`pmt sync` handles the archive and templates). With `--dry-run` nothing is fetched or written: the remote is read with `ls-remote`, and a remote tip this repo has never fetched is reported as `moved` rather than guessed.
+
 ## `pmt new <type>[/<title>]`
 
 1. Split the argument on the first `/` into `type` and optional `title`. Resolve the target repo (`architecture.md`).

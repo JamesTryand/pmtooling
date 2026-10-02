@@ -75,6 +75,21 @@ Explicit behavior for every edge case identified during design (v1 and the Phase
 | Naming the default branch or any non-issue branch | Refused: not a pmt-managed branch |
 | `--remote` names a remote that isn't configured | Error before anything is attempted |
 
+## Distributed working edge cases (`pmt pull`)
+
+| Edge case | Resolution |
+|---|---|
+| Issue exists only on the remote | Local branch created tracking the remote, worktree created at the configured path (`created`) |
+| Branch exists locally, worktree was removed by hand | Fast-forwarded if behind, worktree recreated (`created`) |
+| Worktree has uncommitted changes | `dirty`, exit 2; branch, files and index untouched, even if the remote has new commits |
+| Local and remote both moved | `diverged`, exit 2; never merged, rebased or reset |
+| Local has unpushed commits only | `ahead`, exit 0; points at `pmt push` |
+| Directory at the worktree path that git doesn't know | `orphaned`, exit 2; not deleted |
+| Worktree registered but directory missing | `prunable`, exit 2; user runs `git worktree prune` |
+| Issue not on the remote | Error with near matches; if it exists locally, error points to `pmt push` |
+| `pmt/archive`, `pmt/template/*`, default branch | Refused by `pull`; `pmt sync` handles the first two |
+| `--dry-run` with an unfetched remote tip | Reported as `moved` (ancestry unknowable without the objects); never guessed |
+
 ## Deliberately out of scope
 
 - PR/issue API integration (GitHub/GitLab) — still out of scope. Plain remote git operations (`push`, and the coming `pull`/`sync`) are in; see doc/architecture.md's Non-goals.
