@@ -51,10 +51,14 @@ type PruneOptions struct {
 //     never the remote's `[gone]` state), and the branch has not been
 //     reopened since (a reopened branch contains the archived tip);
 //  2. no worktree has the branch checked out;
-//  3. the branch tip holds nothing the archive lacks: every file in the tip's
-//     tree exists, byte-identical, in the archived copy. The only tolerated
-//     difference is the close stamp (`status`/`closed`) in README.md's
-//     front matter. A real content comparison, not just the stamp.
+//  3. the branch tip holds nothing the archive lacks, shown either by
+//     history (the tip is the archived tip or an ancestor of it, so every
+//     commit is preserved there even if later archived commits changed the
+//     files), or by content (every file in the tip's tree exists,
+//     byte-identical, in the archived copy; the only tolerated difference is
+//     the close stamp, `status`/`closed`, in README.md's front matter). A
+//     branch that diverged from the archived history and has files the
+//     archive lacks is kept.
 //
 // A branch that fails (2) or (3) is kept and reported. The deletion is
 // guarded by the tip it examined, so a branch that moved in the meantime is
@@ -125,9 +129,17 @@ func PruneWith(dir string, opts PruneOptions) ([]PruneResult, error) {
 			continue
 		}
 
-		diffs, err := diffAgainstArchive(dir, archiveRef, tip, branch)
+		// Safe if every commit is already in the archived history; otherwise
+		// fall back to the content check (tip files must all be in the archive).
+		preserved, err := tipPreservedInArchive(dir, archiveRef, branch, tip)
 		if err != nil {
 			return nil, err
+		}
+		var diffs []string
+		if !preserved {
+			if diffs, err = diffAgainstArchive(dir, archiveRef, tip, branch); err != nil {
+				return nil, err
+			}
 		}
 		if len(diffs) > 0 {
 			res.Outcome, res.Diffs = PruneDiffers, diffs
@@ -148,11 +160,15 @@ func PruneWith(dir string, opts PruneOptions) ([]PruneResult, error) {
 			}
 		}
 
+		note := ""
+		if preserved {
+			note = "; all its commits are in the archive history"
+		}
 		res.Outcome = PruneDeleted
-		res.Detail = fmt.Sprintf("tip %s (restore: git branch %s %s)", git.ShortSHA(tip), branch, tip)
+		res.Detail = fmt.Sprintf("tip %s%s (restore: git branch %s %s)", git.ShortSHA(tip), note, branch, tip)
 		if used {
 			res.Outcome = PruneRemoved
-			res.Detail = fmt.Sprintf("worktree %s and branch; tip %s (restore: git branch %s %s, then git worktree add)", wt.Path, git.ShortSHA(tip), branch, tip)
+			res.Detail = fmt.Sprintf("worktree %s and branch; tip %s%s (restore: git branch %s %s, then git worktree add)", wt.Path, git.ShortSHA(tip), note, branch, tip)
 		}
 		if !opts.DryRun {
 			if used {
@@ -226,6 +242,29 @@ func ReopenedSinceArchiveAt(dir, ref, branch, tip string) (bool, error) {
 		return false, nil
 	}
 	return git.IsAncestor(dir, archivedTip, tip)
+}
+
+// tipPreservedInArchive reports whether every commit of the branch tip is
+// already part of the archived history, i.e. the tip is the archived tip or
+// an ancestor of it (the other machine kept working, then closed the issue).
+// The archive commit for an issue has the closed tip as its first parent and
+// is reachable from the archive ref, so nothing on such a branch can be lost
+// by deleting it, whatever its files now look like compared with the later
+// archived copy.
+func tipPreservedInArchive(dir, ref, branch, tip string) (bool, error) {
+	typeName, title := issue.Split(branch)
+	commit, err := findArchiveCommitAt(dir, ref, typeName, title)
+	if err != nil {
+		if err == ErrNotArchived {
+			return false, nil
+		}
+		return false, err
+	}
+	archivedTip, err := git.Run(dir, "rev-parse", commit+"^1")
+	if err != nil {
+		return false, err
+	}
+	return git.IsAncestor(dir, tip, archivedTip)
 }
 
 // diffAgainstArchive returns the paths in tip's tree that the archived copy

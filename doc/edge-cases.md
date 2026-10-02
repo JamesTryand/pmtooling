@@ -98,7 +98,8 @@ Explicit behavior for every edge case identified during design (v1 and the Phase
 | Branch tip differs from the archive only by `status`/`closed` | Pruned; tip SHA and restore command printed |
 | Tip has a file the archive lacks, or the same path with different content | `differs`, exit 2, kept; up to 5 paths listed |
 | README.md edited beyond the close stamp | `differs`; the stamp is the only README difference tolerated |
-| Archive holds later work than the tip | Pruned: the tip is a subset (files only the archive has are fine) |
+| Archive holds later work than the tip, tip is an ancestor of the archived tip | Pruned by history: every commit of the branch is in the archive, so nothing is lost even where later commits changed the same files. The line notes it |
+| Archive holds later work than the tip, but the tip is not an ancestor (histories diverged) | Falls back to the content check: pruned only if every tip file is in the archive identically; otherwise `differs` |
 | Branch still checked out in a worktree (incl. prunable) | `in-use`, exit 2, kept |
 | Branch moves between examining and deleting | Delete is guarded by the examined SHA, so it fails rather than deleting new work |
 | No archive branch, or nothing archived | Nothing to do |

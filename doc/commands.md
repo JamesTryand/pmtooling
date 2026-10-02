@@ -175,7 +175,11 @@ When an issue is closed with `pmt close` on one machine, its branch disappears f
 
 1. the issue is in the archive (`pmt list --archived`) — pmt's own record of "closed", never git's `[gone]` upstream state;
 2. no worktree (including a prunable one) has the branch checked out;
-3. the tip holds nothing the archive lacks: every file in the tip's tree exists, byte-identical, in the archived copy of that issue. `README.md` may differ only by the close stamp (`status`, `closed`); any other README change counts. Files only the archive has are fine (the archive may hold later work).
+3. the tip holds nothing the archive lacks, shown in either of two ways:
+   - **by history:** the tip is the archived tip or an ancestor of it (the closing machine kept working, then closed the issue). Every commit of the branch is then already in the archive's history, so nothing can be lost even though the files now differ from the later archived copy. The `pruned` line says so.
+   - **by content:** every file in the tip's tree exists, byte-identical, in the archived copy of that issue. `README.md` may differ only by the close stamp (`status`, `closed`); any other README change counts. Files only the archive has are fine.
+
+   A branch that diverged from the archived history *and* has files the archive lacks fails both and is kept.
 
 | Verb | Meaning | Exit |
 |---|---|---|

@@ -217,6 +217,40 @@ func TestPruneDeletesWhenArchiveHasLaterWorkThanTheTip(t *testing.T) {
 	}
 }
 
+// The platform/self-hosted-paas case: this machine's branch is simply older
+// than the archived copy. The closing machine kept working (here: resolved an
+// item in NEEDS.md) and then closed the issue, so the files differ, yet every
+// commit of the leftover is already in the archive history. Nothing can be
+// lost, so it is pruned without a content comparison.
+func TestPruneDeletesLeftoverWhoseCommitsAreAllInTheArchiveHistory(t *testing.T) {
+	dir, result := repoWithIssue(t, "one")
+	addCommitInWorktree(t, result.WorktreePath, "NEEDS.md", "item A\nitem B\n", "needs v1")
+	leftover := tipOf(t, dir, "bug/one")
+	addCommitInWorktree(t, result.WorktreePath, "NEEDS.md", "item A\n", "retire: B resolved")
+	closedElsewhere(t, dir, "one", leftover)
+
+	// the files really do differ from the archived copy
+	if diffs, err := diffAgainstArchive(dir, Ref, leftover, "bug/one"); err != nil || len(diffs) == 0 {
+		t.Fatalf("precondition: expected a content difference, got %v (err %v)", diffs, err)
+	}
+
+	rs, err := Prune(dir, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := only(t, rs)
+	if r.Outcome != PruneDeleted || !strings.Contains(r.Detail, "all its commits are in the archive history") || !strings.Contains(r.Detail, leftover) {
+		t.Fatalf("result = %+v, want pruned, noting the history, with the restore tip", r)
+	}
+	if ok, _ := git.RefExists(dir, "refs/heads/bug/one"); ok {
+		t.Error("branch should be deleted")
+	}
+	// every commit of the deleted branch is still reachable from the archive
+	if _, err := git.Run(dir, "merge-base", "--is-ancestor", leftover, Ref); err != nil {
+		t.Errorf("deleted tip %s is not reachable from the archive: %v", leftover, err)
+	}
+}
+
 func TestPruneDryRunDeletesNothingAndMatchesRealRun(t *testing.T) {
 	dir, _ := repoWithIssue(t, "one")
 	tip := tipOf(t, dir, "bug/one")
