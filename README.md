@@ -124,6 +124,20 @@ dir=$(pmt get bug/dboverflow) && cd "$dir"
 
 If the issue's closed, it tells you and gives the exact `pmt reopen` command instead of just failing quietly. Run `pmt get` with no argument to resolve whatever branch is currently checked out at your cwd — useful for jumping back to a worktree's root from a subdirectory of it.
 
+### Working across machines
+
+Issues are plain git branches, so a second machine can follow along through a remote. `pmt` never pushes on its own; you publish with `pmt push` and catch up with `pmt sync`:
+
+```
+pmt push --all          # publish every issue, plus the archive and templates
+pmt sync --dry-run      # on another machine: what would change?
+pmt sync                # create/fast-forward worktrees, report anything that needs you
+pmt pull bug/dboverflow # or bring just one issue across
+pmt prune               # drop leftover branches of issues closed elsewhere
+```
+
+None of them forces anything: a dirty worktree, a diverged branch or an issue that was never pushed is reported (exit status 2) and left exactly as it is, and a closed issue is only removed once the archive provably holds everything in it. See [doc/commands.md](doc/commands.md) for every outcome.
+
 ## Claude Code skill
 
 [.claude/skills/pmt/SKILL.md](.claude/skills/pmt/SKILL.md) teaches Claude how to *use* `pmt` day-to-day (commands, workflows, gotchas) — separate from the `doc/` files below, which document how `pmt` itself is built. Copy the `pmt` folder into `~/.claude/skills/pmt` (available everywhere) or a target repo's `.claude/skills/pmt` (that project only) to use it outside this repo.

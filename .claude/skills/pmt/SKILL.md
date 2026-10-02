@@ -41,6 +41,10 @@ go install github.com/JamesTryand/pmtooling/cmd/pmt@latest
 | `pmt template list` | List available template types in the target repo. |
 | `pmt template update <name> --from <source>` | Pull in changes to an already-imported template. Fast-forwards automatically when safe; if diverged, does **not** auto-merge — leaves the incoming commit at `pmt/template-incoming/<name>` for a manual merge. |
 | `pmt repo add/list/remove/set-default` | Manage the user-level nickname → path map used by `--repo`. |
+| `pmt push [<type>/<title>] [--all] [--dry-run]` | Publish an issue branch (or with `--all`, every issue plus `pmt/archive` and templates) to `origin`. Never forces; a diverged or behind branch is reported, not overwritten. With no argument, pushes the branch checked out here. |
+| `pmt pull <type>/<title> [--dry-run]` | Bring one issue from the remote onto this machine: creates its branch and worktree, or fast-forwards a clean worktree. Dirty or diverged worktrees are reported and left alone. |
+| `pmt sync [--dry-run] [--skip-update]` | Reconcile every worktree on this machine with the remote (create, fast-forward, report). Never pushes, merges or resets. Removes a local issue only if it was closed (archived) elsewhere and nothing in it would be lost. |
+| `pmt prune [--dry-run]` | Delete leftover local branches of issues closed on another machine, only when archived, unused, and a subset of the archive. |
 
 `--repo <path-or-nickname>` works on every command above and overrides cwd-based resolution.
 
@@ -65,6 +69,14 @@ go install github.com/JamesTryand/pmtooling/cmd/pmt@latest
 - `pmt get` never changes your directory itself — a subprocess can't change its parent shell's cwd, and `pmt` is no exception (that's why it's called "get," not "goto"). It only ever prints a path (or, on failure, nothing to stdout and an explanation on stderr). Use it as `dir=$(pmt get <type>/<title>) && cd "$dir"` — the `&&` matters, since it's what stops a failed lookup from `cd`-ing anywhere on empty output.
 - Bare `pmt get` (no argument) resolves the branch currently checked out at cwd instead of taking one as an argument — handy for "what issue am I even in right now," or for normalizing back to a worktree's root from a subdirectory of it.
 - If the issue isn't live, the error tells you why: archived (with the exact `pmt reopen` command to fix it) or not found anywhere (with both `pmt list` and `pmt list --archived`) — read it before trying again rather than guessing.
+
+**Working across machines**
+- Publish new work promptly: `pmt push <type>/<title>` (or `pmt push --all`). An issue that was never pushed is reported `unpublished` by `pmt sync` and kept, but pushing is what makes it exist anywhere else.
+- On another machine: `pmt sync` (everything) or `pmt pull <type>/<title>` (one issue). Use `--dry-run` first when unsure; it shows exactly what would change.
+- All four commands print one line per branch (`verb  branch  detail`) and exit `0` (all fine), `2` (finished, but something needs a person: `dirty`, `diverged`, `behind`, `unpublished`, `closed`, `in-use`, `differs`, `detached`, `orphaned`, `prunable`, `failed`) or `1` (error). Exit `2` is not a failure: read the lines marked with those verbs and decide.
+- `diverged` means both sides have new commits. pmt will not merge or reset for you; ask the user how to reconcile, and do not run `git reset --hard` or `git push --force` to make the message go away.
+- `closed` means the issue is archived here but its branch still exists on the remote; pmt will not recreate it. The detail line gives the `git push <remote> --delete <issue>` to run once the user agrees.
+- Never remove an issue's worktree or branch with raw `git worktree remove` / `git branch -D` to "tidy up" after a sync report. `pmt close` archives first; `pmt sync` and `pmt prune` only delete what the archive already holds. Remotes carry credentials: never paste or print a remote URL.
 
 **Setting up templates**
 - `pmt template new <name>` gives a blank starting point; check it out (`git worktree add <path> pmt/template/<name>`), edit its files, commit.
