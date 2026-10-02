@@ -93,6 +93,32 @@ Named "get" rather than "goto" because it never changes any directory itself —
 3. Not live → look up among archived issues (`archive.ListArchived`, scoped to its type). Found → error explaining it's archived, with the exact `pmt reopen <type>/<title>` command.
 4. Found nowhere → error, points to both `pmt list` and `pmt list --archived`.
 
+### `pmt push [<type>/<title>] [--all] [--dry-run] [--remote <name>]` (distributed working, M2)
+
+```
+pmt push [<type>/<title>]  [--all] [--dry-run] [--remote origin]  [--repo <path-or-nickname>]
+```
+
+Publishes branches to the remote. Never forces. Never prints a remote URL: remotes carry embedded credentials, so output names branches and short commit ranges only, and git's own error text is scrubbed (`internal/git/scrub.go`, plus the exact configured URL is removed from any error).
+
+- **What can be pushed:** live issue branches, `pmt/archive`, and `pmt/template/*`. The repo's default branch is never pushed by pmt; naming a non-managed branch is refused.
+- **Selecting:** an explicit `<type>/<title>`; `--all` for every managed branch; or no argument to use the branch checked out in the current directory. An issue together with `--all` is an error.
+- **Deciding:** each branch is compared with the remote's real tip read via `git ls-remote` (no fetch, no ref written), so `--dry-run` takes exactly the decisions a real run takes and changes nothing at all.
+
+One line per branch, then a summary of counts:
+
+| Verb | Meaning | Exit |
+|---|---|---|
+| `pushed` | fast-forwarded the remote branch (`abc1234..def5678`) | 0 |
+| `new` | branch did not exist on the remote; created, upstream tracking set | 0 |
+| `up-to-date` | nothing to push | 0 |
+| `behind` | the remote is ahead of local; run `pmt sync` | 2 |
+| `moved` | the remote has commits this repo has not fetched; run `pmt sync` | 2 |
+| `diverged` | both sides have new commits; left alone, needs a person | 2 |
+| `failed` | the push was rejected or errored (detail is URL-scrubbed); other branches still go ahead | 2 |
+
+Exit status: `0` everything pushed or up to date; `2` finished but some branches need attention; `1` error. Pushing a new issue's branch promptly is also what stops a later sync from mistaking it for a closed issue.
+
 ## `pmt new <type>[/<title>]`
 
 1. Split the argument on the first `/` into `type` and optional `title`. Resolve the target repo (`architecture.md`).

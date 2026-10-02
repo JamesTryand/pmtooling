@@ -1,6 +1,9 @@
 package git
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // DefaultRemote is the remote pmt syncs with unless told otherwise.
 const DefaultRemote = "origin"
@@ -26,18 +29,41 @@ func RemoteRef(remote, branch string) string {
 	return "refs/remotes/" + remote + "/" + branch
 }
 
+// scrubRemoteErr removes the remote's configured URL (fetch and push
+// variants) from err's text. ScrubURLs catches anything URL-shaped; this
+// also catches a URL that is a plain filesystem path, by matching the exact
+// configured value. The URL is read here only to be removed, never shown.
+func scrubRemoteErr(dir, remote string, err error) error {
+	if err == nil {
+		return nil
+	}
+	msg := err.Error()
+	for _, key := range []string{"url", "pushurl"} {
+		out, code, runErr := RunRaw(dir, "config", "--get-all", "remote."+remote+"."+key)
+		if runErr != nil || code != 0 {
+			continue
+		}
+		for _, u := range Lines(out) {
+			if u != "" {
+				msg = strings.ReplaceAll(msg, u, "<remote>")
+			}
+		}
+	}
+	return fmt.Errorf("%s", ScrubURLs(msg))
+}
+
 // FetchRemote updates remote-tracking refs for remote and prunes ones whose
-// branch is gone. Any error text is already URL-scrubbed (see ExitError).
+// branch is gone. Any error text has the remote's location scrubbed.
 func FetchRemote(dir, remote string) error {
 	_, err := Run(dir, "fetch", remote, "--prune")
-	return err
+	return scrubRemoteErr(dir, remote, err)
 }
 
 // Push pushes branch to remote under the same name and records it as the
 // upstream. It never forces: a non-fast-forward push fails.
 func Push(dir, remote, branch string) error {
 	_, err := Run(dir, "push", "--set-upstream", remote, "refs/heads/"+branch+":refs/heads/"+branch)
-	return err
+	return scrubRemoteErr(dir, remote, err)
 }
 
 // RevParse resolves ref to a full commit SHA.
@@ -57,12 +83,13 @@ func ShortSHA(sha string) string {
 type RelState int
 
 const (
-	RelUpToDate RelState = iota // same commit
-	RelAhead                    // local has commits the remote lacks (push)
-	RelBehind                   // remote has commits local lacks (fast-forward)
-	RelDiverged                 // both have commits the other lacks
-	RelNoRemote                 // no remote-tracking ref: never published, or deleted upstream
-	RelNoLocal                  // remote branch with no local branch
+	RelUpToDate    RelState = iota // same commit
+	RelAhead                       // local has commits the remote lacks (push)
+	RelBehind                      // remote has commits local lacks (fast-forward)
+	RelDiverged                    // both have commits the other lacks
+	RelNoRemote                    // no remote-tracking ref: never published, or deleted upstream
+	RelNoLocal                     // remote branch with no local branch
+	RelRemoteMoved                 // remote tip is a commit not present locally (unfetched)
 )
 
 func (s RelState) String() string {
@@ -79,6 +106,8 @@ func (s RelState) String() string {
 		return "no-remote"
 	case RelNoLocal:
 		return "no-local"
+	case RelRemoteMoved:
+		return "remote-moved"
 	}
 	return fmt.Sprintf("RelState(%d)", int(s))
 }
@@ -122,33 +151,53 @@ func Classify(dir, remote, branch string) (Relation, error) {
 		return Relation{}, err
 	}
 
-	var rel Relation
+	var localSHA, remoteSHA string
 	if localOK {
-		if rel.Local, err = RevParse(dir, "refs/heads/"+branch); err != nil {
+		if localSHA, err = RevParse(dir, "refs/heads/"+branch); err != nil {
 			return Relation{}, err
 		}
 	}
 	if remoteOK {
-		if rel.Remote, err = RevParse(dir, RemoteRef(remote, branch)); err != nil {
+		if remoteSHA, err = RevParse(dir, RemoteRef(remote, branch)); err != nil {
 			return Relation{}, err
 		}
 	}
-
-	switch {
-	case !localOK && !remoteOK:
+	if !localOK && !remoteOK {
 		return Relation{}, fmt.Errorf("branch %q exists neither locally nor on %s", branch, remote)
-	case !localOK:
+	}
+	return ClassifyTips(dir, localSHA, remoteSHA)
+}
+
+// ClassifyTips compares two tips directly. An empty localSHA means there is
+// no local branch; an empty remoteSHA means there is no remote branch. When
+// the remote tip is a commit this repo does not have, ancestry cannot be
+// computed, so the result is RelRemoteMoved (the remote has unfetched
+// commits) rather than a guess.
+func ClassifyTips(dir, localSHA, remoteSHA string) (Relation, error) {
+	rel := Relation{Local: localSHA, Remote: remoteSHA}
+	switch {
+	case localSHA == "" && remoteSHA == "":
+		return Relation{}, fmt.Errorf("neither a local nor a remote tip was given")
+	case localSHA == "":
 		rel.State = RelNoLocal
-	case !remoteOK:
+	case remoteSHA == "":
 		rel.State = RelNoRemote
-	case rel.Local == rel.Remote:
+	case localSHA == remoteSHA:
 		rel.State = RelUpToDate
 	default:
-		localIsAncestor, err := IsAncestor(dir, rel.Local, rel.Remote)
+		_, code, err := RunRaw(dir, "cat-file", "-e", remoteSHA+"^{commit}")
 		if err != nil {
 			return Relation{}, err
 		}
-		remoteIsAncestor, err := IsAncestor(dir, rel.Remote, rel.Local)
+		if code != 0 {
+			rel.State = RelRemoteMoved
+			return rel, nil
+		}
+		localIsAncestor, err := IsAncestor(dir, localSHA, remoteSHA)
+		if err != nil {
+			return Relation{}, err
+		}
+		remoteIsAncestor, err := IsAncestor(dir, remoteSHA, localSHA)
 		if err != nil {
 			return Relation{}, err
 		}
@@ -162,4 +211,23 @@ func Classify(dir, remote, branch string) (Relation, error) {
 		}
 	}
 	return rel, nil
+}
+
+// LsRemoteHeads returns the remote's branch tips (branch name -> SHA) by
+// asking the remote directly, without writing any local ref. It is what lets
+// a dry run see the real remote state while changing nothing.
+func LsRemoteHeads(dir, remote string) (map[string]string, error) {
+	out, err := Run(dir, "ls-remote", "--heads", remote)
+	if err != nil {
+		return nil, scrubRemoteErr(dir, remote, err)
+	}
+	tips := map[string]string{}
+	for _, line := range Lines(out) {
+		sha, ref, ok := strings.Cut(line, "\t")
+		if !ok || !strings.HasPrefix(ref, "refs/heads/") {
+			continue
+		}
+		tips[strings.TrimPrefix(ref, "refs/heads/")] = sha
+	}
+	return tips, nil
 }

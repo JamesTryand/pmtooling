@@ -60,9 +60,22 @@ Explicit behavior for every edge case identified during design (v1 and the Phase
 | `PMT_DEFAULT_REPO` set, cwd is not a repo, and `default_repo` is also configured | Env var wins — it's a session-scoped override, checked before the more permanent config setting |
 | `PMT_DEFAULT_REPO` unset or empty | No effect; falls through to `default_repo` (or the "not inside a git repository" error) exactly as before Phase 8a |
 
+## Distributed working edge cases (`pmt push`)
+
+| Edge case | Resolution |
+|---|---|
+| Branch has no remote counterpart | `new`: pushed and upstream tracking set |
+| Remote branch is ahead / both sides moved | `behind` / `diverged`: reported, remote untouched, exit 2; never force-pushed |
+| Remote has commits this repo never fetched | `moved`: ancestry can't be computed without the objects, so it is reported rather than guessed; run `pmt sync` |
+| One branch's push is rejected (e.g. server hook) | That branch reports `failed` with scrubbed detail; the remaining branches are still pushed |
+| Remote URL embeds a credential and the push/ls-remote fails | Error text has URLs, `host` fragments and the exact configured URL replaced with `<remote>` |
+| `--dry-run` | Reads remote tips with `ls-remote`, writes no ref anywhere, reports the same verbs the real run would |
+| Naming the default branch or any non-issue branch | Refused: not a pmt-managed branch |
+| `--remote` names a remote that isn't configured | Error before anything is attempted |
+
 ## Deliberately out of scope
 
-- Push, PR/issue API integration (GitHub/GitLab) — purely local git for now, and still deferred as of the Phase 7 v2 work (not selected for implementation).
+- PR/issue API integration (GitHub/GitLab) — still out of scope. Plain remote git operations (`push`, and the coming `pull`/`sync`) are in; see doc/architecture.md's Non-goals.
 - ~~`pmt close` / issue cleanup~~ — implemented as Phase 7b (`pmt close`/`pmt reopen` with an append-only archive workflow, see doc/templates.md and doc/commands.md).
 - ~~Config-editing subcommands (`pmt repo add/list/remove`)~~ — implemented as Phase 7a: `pmt repo add/list/remove/set-default`, see doc/commands.md.
 - ~~Bare-repo support~~ — implemented as Phase 7c, see the row above and doc/architecture.md.

@@ -210,3 +210,42 @@ func TestPushSetsUpstreamForNewBranch(t *testing.T) {
 		t.Errorf("upstream = %q, %v; want origin/bug/new", up, err)
 	}
 }
+
+// TestLsRemoteHeadsAndRemoteMoved covers the no-fetch path push relies on:
+// reading the remote's tips directly, and classifying a remote tip whose
+// commit this repo has never fetched.
+func TestLsRemoteHeadsAndRemoteMoved(t *testing.T) {
+	f := newRemoteFixture(t)
+	other := f.second(t)
+	commitFile(t, other, "b.txt", "b")
+	if _, err := Run(other, "push", "-q", "origin", "HEAD"); err != nil {
+		t.Fatal(err)
+	}
+
+	before, err := Run(f.work, "for-each-ref", "refs/remotes")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tips, err := LsRemoteHeads(f.work, "origin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, _ := Run(f.work, "for-each-ref", "refs/remotes")
+	if before != after {
+		t.Errorf("LsRemoteHeads changed remote-tracking refs:\n%s\n--\n%s", before, after)
+	}
+
+	want, _ := Run(other, "rev-parse", "HEAD")
+	if tips[f.def] != want {
+		t.Fatalf("tip for %s = %q, want %q", f.def, tips[f.def], want)
+	}
+
+	local, _ := RevParse(f.work, "refs/heads/"+f.def)
+	rel, err := ClassifyTips(f.work, local, tips[f.def])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rel.State != RelRemoteMoved {
+		t.Errorf("ClassifyTips with an unfetched remote tip = %v, want remote-moved", rel.State)
+	}
+}
