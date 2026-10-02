@@ -15,6 +15,11 @@ import (
 // changes — refused rather than silently discarding them.
 var ErrDirtyWorktree = errors.New("worktree has uncommitted changes; commit or discard them before closing")
 
+// ErrArchiveWorktreeDirty is returned when a worktree has pmt/archive
+// checked out and holds uncommitted changes: closing would move the branch
+// under it, so it is refused rather than leaving that worktree inconsistent.
+var ErrArchiveWorktreeDirty = errors.New("the pmt/archive worktree has uncommitted changes; commit or discard them before closing")
+
 // CloseResult is what Close returns on success.
 type CloseResult struct {
 	Branch          string
@@ -64,6 +69,25 @@ func Close(mainRepoRoot string, repoCfg config.RepoConfig, typeName, title strin
 		}
 	}
 
+	// Closing moves refs/heads/pmt/archive. If a worktree has that branch
+	// checked out, its index and files would be left at the old tip, showing
+	// the newly archived issue as staged deletions. Refuse up front if that
+	// worktree has uncommitted work (before anything is stamped or moved);
+	// otherwise it is brought level after the ref moves.
+	archiveWT, archiveWTPresent, err := archiveWorktree(mainRepoRoot)
+	if err != nil {
+		return CloseResult{}, err
+	}
+	if archiveWTPresent {
+		dirty, err := git.IsWorktreeDirty(archiveWT)
+		if err != nil {
+			return CloseResult{}, err
+		}
+		if dirty {
+			return CloseResult{}, fmt.Errorf("%w: %s", ErrArchiveWorktreeDirty, archiveWT)
+		}
+	}
+
 	closedAt := time.Now().UTC().Format(time.RFC3339)
 	mutate := func(meta *issue.Meta) {
 		meta.Status = "closed"
@@ -85,6 +109,14 @@ func Close(mainRepoRoot string, repoCfg config.RepoConfig, typeName, title strin
 	if err != nil {
 		return CloseResult{}, err
 	}
+	if archiveWTPresent {
+		// The branch ref now points at archiveCommit but this worktree's
+		// index and files are still at the previous tip. It was verified
+		// clean above, so resetting to HEAD (the new tip) loses nothing.
+		if _, err := git.Run(archiveWT, "reset", "--hard", "-q", "HEAD"); err != nil {
+			return CloseResult{}, fmt.Errorf("archive updated (%s) but its checked-out worktree %s could not be brought level: %w", archiveCommit, archiveWT, err)
+		}
+	}
 
 	if isRegistered {
 		if _, err := git.Run(mainRepoRoot, "worktree", "remove", registeredPath); err != nil {
@@ -96,6 +128,17 @@ func Close(mainRepoRoot string, repoCfg config.RepoConfig, typeName, title strin
 	}
 
 	return CloseResult{Branch: branch, ArchiveCommit: archiveCommit, WorktreeRemoved: isRegistered}, nil
+}
+
+// archiveWorktree returns the path of the worktree that has pmt/archive
+// checked out, if one exists on disk. A registered worktree whose directory
+// is missing is ignored: there is nothing on disk to keep consistent.
+func archiveWorktree(mainRepoRoot string) (path string, ok bool, err error) {
+	path, registered, err := registeredWorktreePath(mainRepoRoot, "pmt/archive")
+	if err != nil || !registered || !dirExists(path) {
+		return "", false, err
+	}
+	return path, true, nil
 }
 
 func registeredWorktreePath(mainRepoRoot, branch string) (path string, ok bool, err error) {

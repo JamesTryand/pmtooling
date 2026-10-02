@@ -1,6 +1,7 @@
 package archive
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -81,6 +82,81 @@ func TestCloseDirtyWorktreeRefused(t *testing.T) {
 	}
 	if _, err := os.Stat(result.WorktreePath); err != nil {
 		t.Errorf("worktree should still exist after a refused close: %v", err)
+	}
+}
+
+// addArchiveWorktree closes one issue (creating pmt/archive) and checks the
+// archive branch out in its own worktree, like the notebook farm does.
+func addArchiveWorktree(t *testing.T) (dir, archiveWT string) {
+	t.Helper()
+	dir, _ = repoWithIssue(t, "first")
+	if _, err := Close(dir, defaultCfg(), "bug", "first"); err != nil {
+		t.Fatalf("first Close: %v", err)
+	}
+	archiveWT = filepath.Join(t.TempDir(), "archive-wt")
+	if err := git.WorktreeAdd(dir, archiveWT, "pmt/archive"); err != nil {
+		t.Fatalf("WorktreeAdd(pmt/archive): %v", err)
+	}
+	return dir, archiveWT
+}
+
+// TestCloseKeepsCheckedOutArchiveWorktreeConsistent is the 2026-10-01
+// regression: closing an issue moved pmt/archive but left the worktree that
+// has it checked out showing the new issue's files as staged deletions.
+func TestCloseKeepsCheckedOutArchiveWorktreeConsistent(t *testing.T) {
+	dir, archiveWT := addArchiveWorktree(t)
+
+	if _, err := issue.Create(dir, defaultCfg(), "bug", "second"); err != nil {
+		t.Fatalf("issue.Create: %v", err)
+	}
+	closeResult, err := Close(dir, defaultCfg(), "bug", "second")
+	if err != nil {
+		t.Fatalf("second Close: %v", err)
+	}
+
+	if status, err := git.Run(archiveWT, "status", "--porcelain"); err != nil || status != "" {
+		t.Errorf("archive worktree status = %q (err %v), want clean", status, err)
+	}
+	if head, _ := git.Run(archiveWT, "rev-parse", "HEAD"); head != closeResult.ArchiveCommit {
+		t.Errorf("archive worktree HEAD = %s, want the new archive tip %s", head, closeResult.ArchiveCommit)
+	}
+	if _, err := os.Stat(filepath.Join(archiveWT, "bug", "second", "README.md")); err != nil {
+		t.Errorf("newly archived issue's files missing from the archive worktree: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(archiveWT, "bug", "first", "README.md")); err != nil {
+		t.Errorf("earlier archived issue's files missing from the archive worktree: %v", err)
+	}
+}
+
+func TestCloseRefusesWhenArchiveWorktreeIsDirty(t *testing.T) {
+	dir, archiveWT := addArchiveWorktree(t)
+	if _, err := issue.Create(dir, defaultCfg(), "bug", "second"); err != nil {
+		t.Fatalf("issue.Create: %v", err)
+	}
+	tipBefore, _ := git.Run(dir, "rev-parse", Ref)
+
+	scratch := filepath.Join(archiveWT, "notes.txt")
+	if err := os.WriteFile(scratch, []byte("uncommitted work"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := Close(dir, defaultCfg(), "bug", "second")
+	if !errors.Is(err, ErrArchiveWorktreeDirty) {
+		t.Fatalf("Close: got %v, want ErrArchiveWorktreeDirty", err)
+	}
+	if !strings.Contains(err.Error(), archiveWT) {
+		t.Errorf("error should name the worktree so the user can find it: %v", err)
+	}
+
+	// nothing moved, nothing lost
+	if tipAfter, _ := git.Run(dir, "rev-parse", Ref); tipAfter != tipBefore {
+		t.Errorf("archive moved on a refused close: %s -> %s", tipBefore, tipAfter)
+	}
+	if exists, _ := git.RefExists(dir, "refs/heads/bug/second"); !exists {
+		t.Error("issue branch should still exist after a refused close")
+	}
+	if got, err := os.ReadFile(scratch); err != nil || string(got) != "uncommitted work" {
+		t.Errorf("uncommitted work in the archive worktree was touched: %q, %v", got, err)
 	}
 }
 

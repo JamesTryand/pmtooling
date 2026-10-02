@@ -25,6 +25,8 @@ Explicit behavior for every edge case identified during design (v1 and the Phase
 | `pmt close` with uncommitted changes in the worktree | Refused (`ErrDirtyWorktree`), not force-cleaned; nothing is stamped, archived, removed, or deleted |
 | `pmt close` when the worktree is registered but its directory was manually deleted (prunable) | Stamped via plumbing directly on the branch (no directory to write into); `git worktree remove` still cleans up the stale registration so the branch can be deleted |
 | `pmt close` on a hand-created branch that never had a worktree | Stamped via plumbing; worktree removal step is skipped entirely (nothing was ever registered) |
+| `pmt close` when a worktree has `pmt/archive` checked out and is clean | After the archive moves, that worktree is reset to the new tip so its index and files match (previously it showed the new issue's files as staged deletions) |
+| `pmt close` when the `pmt/archive` worktree has uncommitted changes | Refused up front (`ErrArchiveWorktreeDirty`, naming the worktree) before anything is stamped, archived or removed; the uncommitted files are untouched |
 | `pmt reopen` on a name with no archived entry | Error (`ErrNotArchived`) |
 | `pmt reopen` when a live branch of that name already exists | Error — refuses to recreate over a live branch |
 | `pmt reopen` after the same issue was previously closed, reopened, and closed again | Finds the *most recent* close (tree-content comparison while walking the archive's second-parent chain), not the stale first one — this is the exact scenario an early parent-position-based design got wrong; see task_plan.md's Decisions Made |
