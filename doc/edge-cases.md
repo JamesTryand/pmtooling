@@ -90,6 +90,20 @@ Explicit behavior for every edge case identified during design (v1 and the Phase
 | `pmt/archive`, `pmt/template/*`, default branch | Refused by `pull`; `pmt sync` handles the first two |
 | `--dry-run` with an unfetched remote tip | Reported as `moved` (ancestry unknowable without the objects); never guessed |
 
+## Distributed working edge cases (`pmt prune`)
+
+| Edge case | Resolution |
+|---|---|
+| Local branch of an issue that is not in the archive | Never a candidate, even if its remote branch is gone (this is the 2026-09-25 incident: unpushed open issues look "gone") |
+| Branch tip differs from the archive only by `status`/`closed` | Pruned; tip SHA and restore command printed |
+| Tip has a file the archive lacks, or the same path with different content | `differs`, exit 2, kept; up to 5 paths listed |
+| README.md edited beyond the close stamp | `differs`; the stamp is the only README difference tolerated |
+| Archive holds later work than the tip | Pruned: the tip is a subset (files only the archive has are fine) |
+| Branch still checked out in a worktree (incl. prunable) | `in-use`, exit 2, kept |
+| Branch moves between examining and deleting | Delete is guarded by the examined SHA, so it fails rather than deleting new work |
+| No archive branch, or nothing archived | Nothing to do |
+| `[gone]` upstream with no archive entry | Ignored: pmt's archive is the only source of "closed" |
+
 ## Deliberately out of scope
 
 - PR/issue API integration (GitHub/GitLab) — still out of scope. Plain remote git operations (`push`, and the coming `pull`/`sync`) are in; see doc/architecture.md's Non-goals.

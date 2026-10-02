@@ -143,6 +143,22 @@ Same verbs, URL scrubbing and exit codes as `push`, plus:
 
 An issue that isn't on the remote is an error naming it, with near matches ("did you mean"); one that exists only locally points to `pmt push`. `pmt/*` branches are refused (`pmt sync` handles the archive and templates). With `--dry-run` nothing is fetched or written: the remote is read with `ls-remote`, and a remote tip this repo has never fetched is reported as `moved` rather than guessed.
 
+### `pmt prune [--dry-run]` (distributed working, M5)
+
+When an issue is closed with `pmt close` on one machine, its branch disappears from the remote but every other machine keeps a local copy. `pmt prune` deletes such a leftover only when all three hold:
+
+1. the issue is in the archive (`pmt list --archived`) — pmt's own record of "closed", never git's `[gone]` upstream state;
+2. no worktree (including a prunable one) has the branch checked out;
+3. the tip holds nothing the archive lacks: every file in the tip's tree exists, byte-identical, in the archived copy of that issue. `README.md` may differ only by the close stamp (`status`, `closed`); any other README change counts. Files only the archive has are fine (the archive may hold later work).
+
+| Verb | Meaning | Exit |
+|---|---|---|
+| `pruned` | deleted; detail prints the tip SHA and `git branch <name> <sha>` to restore it | 0 |
+| `in-use` | closed elsewhere but still checked out here; kept, detail names the worktree | 2 |
+| `differs` | tip has files the archive lacks or holds differently; kept, detail lists up to 5 paths | 2 |
+
+Open issues and non-issue branches are never candidates. The deletion is guarded by the tip that was examined (`update-ref -d <ref> <sha>`), so a branch that moved meanwhile is not deleted. `--dry-run` reports the same verbs and deletes nothing. A `differs` branch needs a human: after checking the listed paths, delete it with plain `git branch -D` (the tip is shown).
+
 ## `pmt new <type>[/<title>]`
 
 1. Split the argument on the first `/` into `type` and optional `title`. Resolve the target repo (`architecture.md`).
