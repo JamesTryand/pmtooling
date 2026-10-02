@@ -21,7 +21,9 @@ func (e *ExitError) Error() string {
 	if e.Stderr != "" {
 		msg += ": " + e.Stderr
 	}
-	return msg
+	// Stderr from fetch/push can quote the remote URL, which carries a
+	// credential; never let it reach a user-visible message.
+	return ScrubURLs(msg)
 }
 
 // RunRaw executes git with args in dir and returns trimmed stdout and the

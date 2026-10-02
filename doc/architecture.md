@@ -73,7 +73,7 @@ See `templates.md` for the exact front-matter schema.
 
 ## Non-goals
 
-- No push, no PR/issue creation, no GitHub/GitLab API integration — purely local git (still true after the Phase 7 v2 work; not selected for implementation).
+- No PR/issue creation and no GitHub/GitLab (forge) API integration. ~~No push, purely local git~~ — superseded by the distributed-working round: pmt now performs plain remote git operations (`fetch`, `push`, fast-forward) against a configured remote, through `pmt push`/`pull`/`sync`/`prune`. Those commands never force-push, never print a remote URL (remotes embed credentials; git error text is scrubbed, see `internal/git/scrub.go`), and never remove an issue's branch or worktree outside the archive safety check.
 - ~~No `pmt close`/cleanup command~~ — implemented as Phase 7b (`pmt close`/`pmt reopen`, see doc/templates.md).
 - ~~No config-editing subcommands~~ — implemented as Phase 7a (`pmt repo add/list/remove/set-default`).
 - ~~No bare-repo support~~ — implemented as Phase 7c (this doc's Repo resolution and Worktree sibling convention sections above).
